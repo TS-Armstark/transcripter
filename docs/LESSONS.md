@@ -24,6 +24,15 @@ Format: **Datum – Thema**: Erkenntnis → Konsequenz. Neueste oben.
   GitHub Action, ausgelöst durch einen gepushten Tag `vX.Y.Z` (Claude kann Tags per git pushen).
 
 ## Learnings
+- **2026-09-30 – Modellgröße**: Das fertige faster-whisper-Modell `large-v3-turbo` liegt auf der Platte in fp16
+  (~1,6 GB). Die ~0,8 GB gelten erst nach einer int8-Konvertierung (`ct2-transformers-converter
+  --quantization int8`). → Das im Release-Build machen. Prüfen, ob die GPU mit dem int8-Modell gut läuft
+  (ggf. `int8_float16`).
+- **2026-09-30 – Kein Hugging Face im Cloud-Container**: Hugging Face ist aus dem Container gesperrt, PyPI geht.
+  Echte Modell-Läufe sind nur beim User möglich; hier werden nur Schnittstelle und Logik (Fake-Modell) getestet.
+- **2026-09-30 – Echo ohne Headset**: Über Lautsprecher landet die Remote-Stimme auch auf der Mikrofon-Spur.
+  → `remove_echo()` verwirft Mikrofon-Segmente, die sich zeitlich überlappen und textlich ähnlich sind
+  (Schwellwert 0,6). Die Schwelle an echten Aufnahmen prüfen.
 - **2026-09-30 – WASAPI-Loopback liefert bei Stille keine Daten**: Solange nichts abgespielt wird, kommen keine
   Callbacks. Ohne Gegenmaßnahme wäre `system.wav` kürzer als `mic.wav` und die Zeitstempel liefen auseinander.
   → `TrackWriter.pad_to_clock()` füllt ab 0,5 s Rückstand gegenüber der Uhr mit Stille auf. Auf echter Hardware

@@ -11,7 +11,7 @@ import threading
 
 from transcripter import __version__
 from transcripter.export import format_timestamp
-from transcripter.paths import is_cloud_synced, recordings_dir
+from transcripter.paths import is_cloud_synced, recordings_dir, transcripts_dir
 
 
 def _cmd_devices(_: argparse.Namespace) -> int:
@@ -62,7 +62,39 @@ def _cmd_record(args: argparse.Namespace) -> int:
         session = recorder.stop()
 
     print(f"\nGespeichert: {session.directory} ({format_timestamp(session.duration)})")
+    if args.transcribe:
+        return _transcribe(session.directory)
     return 0
+
+
+def _transcribe(session_dir) -> int:
+    from transcripter.transcribe import load_model, pick_device, transcribe_session
+
+    target = transcripts_dir()
+    if is_cloud_synced(target):
+        print(f"WARNUNG: {target} wird vermutlich in die Cloud synchronisiert!", file=sys.stderr)
+    choice = pick_device()
+    print(f"Lade Sprachmodell ({'Grafikkarte' if choice.device == 'cuda' else 'CPU'}) …")
+    model = load_model()
+
+    def progress(track: str, share: float) -> None:
+        print(f"\rTranskribiere {track}: {share:5.0%}", end="" if share < 1 else "\n")
+
+    out = transcribe_session(session_dir, target, model, progress)
+    print(f"Transkript: {out}")
+    return 0
+
+
+def _cmd_transcribe(args: argparse.Namespace) -> int:
+    from pathlib import Path
+
+    from transcripter.transcribe import latest_session
+
+    session_dir = Path(args.session) if args.session else latest_session(recordings_dir())
+    if not session_dir or not (session_dir / "session.json").exists():
+        print("Keine Aufnahme gefunden.", file=sys.stderr)
+        return 2
+    return _transcribe(session_dir)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -75,7 +107,12 @@ def main(argv: list[str] | None = None) -> int:
     rec = sub.add_parser("record", help="Aufnahme starten (Mikrofon + System-Audio)")
     rec.add_argument("--no-mic", action="store_true", help="Mikrofon nicht aufnehmen")
     rec.add_argument("--no-system", action="store_true", help="System-Audio nicht aufnehmen")
+    rec.add_argument("--transcribe", action="store_true", help="Nach dem Stoppen direkt transkribieren")
     rec.set_defaults(func=_cmd_record)
+
+    tr = sub.add_parser("transcribe", help="Aufnahme transkribieren (Standard: die neueste)")
+    tr.add_argument("session", nargs="?", help="Ordner der Aufnahme")
+    tr.set_defaults(func=_cmd_transcribe)
 
     args = parser.parse_args(argv)
     if not getattr(args, "func", None):

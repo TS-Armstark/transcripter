@@ -37,17 +37,20 @@ Später geklärt:
 - [ ] Geräteauswahl statt nur Standardgeräte
 
 ## Meilenstein 2 – Transkription
-- [ ] faster-whisper lokal einbinden
-- [ ] Modell-Download einmalig / Offline-Betrieb sicherstellen
+- [x] faster-whisper lokal einbinden (`transcribe.py`), Deutsch fest, VAD-Filter gegen Stille
+- [x] Modell-Suche: `TRANSCRIPTER_MODEL` → mitgeliefertes `models/large-v3-turbo/` → Download (nur Entwicklung)
+- [ ] **Test durch User auf Windows**: `transcripter record --transcribe` (lädt beim ersten Mal das Modell, ~1,6 GB)
+- [ ] Qualität prüfen: Erkennung Deutsch, Echo-Filter bei Lautsprecher statt Headset
 - [x] Transkript als Markdown mit Zeitstempeln und Sprechern exportieren (`export.py`)
-- [ ] Einfache Sprechertrennung über die Spuren: Mikrofon = „Ich/Raum“, System-Audio = „Remote“
+- [x] Einfache Sprechertrennung über die Spuren: Mikrofon = „Ich/Raum“, System-Audio = „Remote“
+- [x] Echo-Filter: Mikrofon-Segmente, die zeitgleich und textgleich mit der System-Spur sind, werden verworfen
 - [ ] Echte Sprechertrennung (lokal, z. B. sherpa-onnx) – Sprecher 1, 2, 3 …
-- [ ] Automatische Auswahl GPU/CPU und passende Modellgröße
+- [x] Automatische Auswahl GPU (float16) / CPU (int8), Fallback auf CPU bei GPU-Fehler
 
 ## Meilenstein 3 – Bedienung & Release (Windows)
 - [ ] GUI (Start/Stop, Liste der Aufnahmen, Transkript öffnen)
 - [ ] PyInstaller-Build (onedir) → portable ZIP im Release-Workflow
-- [ ] Modell + Lizenztexte (`LICENSES/`) ins Paket
+- [ ] Modell + Lizenztexte (`LICENSES/`) ins Paket – Modell beim Build nach int8 konvertieren (~0,8 GB statt 1,6 GB)
 - [ ] Zweites Asset: GPU-Paket (CUDA-Bibliotheken), jede Datei < 2 GB (GitHub-Limit)
 - [~] Speicherort lokal; Warnung, wenn der Ordner von OneDrive o. Ä. synchronisiert wird (Erkennung in `paths.py` fertig, Warnung in GUI fehlt)
 - [ ] Erstes Release `v0.1.0`
