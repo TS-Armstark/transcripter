@@ -43,9 +43,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: web/models
-          key: web-whisper-small-q8-v1
+          key: web-models-whisper-small-q8-wavlm-sv-q8-v1
 
-      - name: Whisper small (q8) für die Seite herunterladen
+      - name: Modelle für die Seite herunterladen (Whisper small q8, WavLM-Stimmabdrücke q8)
         if: steps.model-cache.outputs.cache-hit != 'true'
         run: |
           pip install huggingface_hub
@@ -55,6 +55,11 @@ jobs:
               "Xenova/whisper-small",
               local_dir="models/Xenova/whisper-small",
               allow_patterns=["*.json", "onnx/encoder_model_quantized.onnx", "onnx/decoder_model_merged_quantized.onnx"],
+          )
+          snapshot_download(
+              "Xenova/wavlm-base-plus-sv",
+              local_dir="models/Xenova/wavlm-base-plus-sv",
+              allow_patterns=["*.json", "onnx/model_quantized.onnx"],
           )
           PY
 
@@ -68,6 +73,23 @@ jobs:
           sudo apt-get install -y -q espeak-ng
           espeak-ng -v de -s 140 -w sample.wav "Guten Morgen zusammen. Das ist ein kurzer Test der Transkription."
           node test/e2e.mjs --transcribe sample.wav --expect morgen,test,transkription
+          # Sprechererkennung: zwei synthetische Stimmen im Wechsel (A, B, A)
+          espeak-ng -v de -s 140 -w a1.wav "Guten Tag, ich stelle heute kurz den Projektstand vor."
+          espeak-ng -v de+f4 -p 80 -s 150 -w b1.wav "Danke, dazu habe ich gleich noch eine Frage zum Zeitplan."
+          espeak-ng -v de -s 140 -w a2.wav "Gerne, der Zeitplan steht bis Ende nächster Woche fest."
+          python3 - <<'PY'
+          import wave
+          frames, params = [], None
+          for name in ["a1.wav", "b1.wav", "a2.wav"]:
+              with wave.open(name) as w:
+                  params = params or w.getparams()
+                  frames.append(w.readframes(w.getnframes()))
+                  frames.append(b"\x00" * (params.sampwidth * params.framerate * 2))
+          with wave.open("dialog.wav", "wb") as out:
+              out.setparams(params)
+              out.writeframes(b"".join(frames))
+          PY
+          node test/e2e.mjs --transcribe dialog.wav --speakers 2 --expect-turns A,B,A
 
       - if: github.event_name != 'pull_request'
         uses: actions/upload-pages-artifact@v3

@@ -24,6 +24,11 @@ Format: **Datum – Thema**: Erkenntnis → Konsequenz. Neueste oben.
   GitHub Action, ausgelöst durch einen gepushten Tag `vX.Y.Z` (Claude kann Tags per git pushen).
 
 ## Learnings
+- **2026-09-30 – Sprechererkennung im Browser**: pyannote-segmentation in transformers.js kennt nur bis zu 3 Sprecher je
+  10-s-Fenster und hat keine globale Zuordnung. → Stattdessen je Whisper-Satz einen Stimmabdruck (WavLMForXVector,
+  512-dim) berechnen, dann agglomeratives Clustering über Schwerpunkte (Schwelle 0.86 laut Modellkarte). Kleine Cluster
+  (<3 s bzw. <4 %) dem ähnlichsten großen zuschlagen. Kurze Sätze auf 1,5 s mit Umgebung auffüllen, lange auf 10 s
+  kappen. Grenze: ein Sprecherwechsel innerhalb eines Satzes wird nicht erkannt.
 - **2026-09-30 – Pages bei privatem Repo**: Im Free-Tarif nicht möglich. Mit Pro/Team ist die Seite trotzdem öffentlich;
   eine Zugriffsbeschränkung gibt es nur bei Enterprise Cloud. → Repo öffentlich gemacht; die Seite enthält nur Code und
   Modell, keine Nutzerdaten. `github.io` ist aus dem Cloud-Container nicht erreichbar, also Deploy über den Job-Status

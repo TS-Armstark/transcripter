@@ -1,5 +1,5 @@
 // Web-Worker: Whisper per transformers.js – läuft komplett lokal im Browser (WebGPU oder WebAssembly).
-import { env, pipeline } from "./vendor/transformers.min.js";
+import { AutoFeatureExtractor, WavLMForXVector, env, pipeline } from "./vendor/transformers.min.js";
 
 // Nur eigene Dateien laden: WASM-Laufzeit aus ./vendor, Modelle zuerst aus ./models (mitgeliefert),
 // sonst einmalig von Hugging Face (danach im Browser-Cache).
@@ -17,29 +17,45 @@ export const MODELS = {
   },
 };
 
+// Stimmabdrücke für die Sprechererkennung (WavLM, auf Sprecher-Verifikation trainiert)
+const SPEAKER_MODEL = "Xenova/wavlm-base-plus-sv";
+
 let asr = null;
 let loadedKey = null;
+let speaker = null;
+
+async function loadSpeaker() {
+  if (speaker) return speaker;
+  const [extractor, model] = await Promise.all([
+    AutoFeatureExtractor.from_pretrained(SPEAKER_MODEL),
+    WavLMForXVector.from_pretrained(SPEAKER_MODEL, { dtype: "q8", device: "wasm", progress_callback: reportProgress }),
+  ]);
+  speaker = { extractor, model };
+  return speaker;
+}
+
+const progressFiles = new Map();
+function reportProgress(p) {
+  if (p.status === "progress" && p.total) {
+    progressFiles.set(p.file, [p.loaded, p.total]);
+    let loaded = 0;
+    let total = 0;
+    for (const [l, t] of progressFiles.values()) {
+      loaded += l;
+      total += t;
+    }
+    self.postMessage({ type: "load-progress", loaded, total });
+  }
+}
 
 async function load(key) {
   if (asr && loadedKey === key) return;
   const cfg = MODELS[key];
   if (!cfg) throw new Error(`Unbekanntes Modell: ${key}`);
-  const files = new Map();
   asr = await pipeline("automatic-speech-recognition", cfg.id, {
     device: cfg.device,
     dtype: cfg.dtype,
-    progress_callback: (p) => {
-      if (p.status === "progress" && p.total) {
-        files.set(p.file, [p.loaded, p.total]);
-        let loaded = 0;
-        let total = 0;
-        for (const [l, t] of files.values()) {
-          loaded += l;
-          total += t;
-        }
-        self.postMessage({ type: "load-progress", loaded, total });
-      }
-    },
+    progress_callback: reportProgress,
   });
   loadedKey = key;
 }
@@ -64,6 +80,11 @@ self.onmessage = async ({ data }) => {
         text: c.text,
       }));
       self.postMessage({ type: "result", id: data.id, chunks });
+    } else if (data.type === "embed") {
+      const { extractor, model } = await loadSpeaker();
+      const inputs = await extractor(data.audio, { sampling_rate: 16000 });
+      const { embeddings } = await model(inputs);
+      self.postMessage({ type: "result", id: data.id, chunks: Array.from(embeddings.data) });
     }
   } catch (err) {
     self.postMessage({ type: "error", id: data.id, message: String(err?.message || err) });
