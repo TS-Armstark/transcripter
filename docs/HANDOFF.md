@@ -12,7 +12,7 @@
 - Workflow `pages.yml`: Whisper small mitliefern, E2E mit deutscher espeak-Sprachprobe, Deploy auf Pages
 
 ## Nächster Schritt
-1. User aktiviert GitHub Pages (Settings → Pages → Source: GitHub Actions), dann Deploy von `main`
+1. ~~Pages aktivieren~~ erledigt – online: https://ts-armstark.github.io/transcripter/ (Repo ist öffentlich)
 2. User testet https://ts-armstark.github.io/transcripter/ auf dem Firmenrechner (Edge/Chrome)
 3. Parallel: IT-Freigabe der .exe (Mail an IT – Empfänger vom User erfragen)
 

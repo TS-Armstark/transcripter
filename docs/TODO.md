@@ -72,6 +72,6 @@ Später geklärt:
 - [x] Energie-basierte Spracherkennung (statt VAD), Halluzinations-Filter, Echo-Filter, Markdown-Export
 - [x] Audiodatei hochladen und transkribieren
 - [x] GitHub-Pages-Workflow mit E2E-Test (Chromium, espeak-Sprachprobe)
-- [ ] **User: GitHub Pages aktivieren** (Settings → Pages → Source: GitHub Actions)
+- [x] GitHub Pages aktiviert, Repo öffentlich (30.09.2026) – https://ts-armstark.github.io/transcripter/
 - [ ] Test durch User auf Firmenrechner (Edge/Chrome): Bildschirmfreigabe mit Systemaudio erlaubt? Modell-Download ok?
 - [ ] Parallel: IT-Freigabe der .exe anstoßen
