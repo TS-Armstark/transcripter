@@ -76,6 +76,8 @@ Später geklärt:
       Transkript als Gesprächsverlauf, responsiv (Handy)
 - [x] Sprechererkennung im Browser: WavLM-Stimmabdrücke (Xenova/wavlm-base-plus-sv, q8) je Satz + Clustering
       (automatisch oder feste Anzahl), Namen per Klick umbenennen, Farben je Sprecher
+- [x] Zwei echte Seiten statt Sprung-Navigation: „Aufnehmen“ (Dashboard + letzte 3) und „Transkripte“
+      (alle, mit Suche, Liste links / Ansicht rechts, Aktionen Neu transkribieren, Audio, Löschen)
 - [ ] Rückmeldung User: Trefferquote der Sprechererkennung in echten Meetings (ggf. Schwelle 0.86 anpassen)
 - [ ] Sprechererkennung auch in der Desktop-Version (gleicher Ansatz, z. B. sherpa-onnx oder WavLM via onnxruntime)
 - [x] GitHub Pages aktiviert, Repo öffentlich (30.09.2026) – https://ts-armstark.github.io/transcripter/

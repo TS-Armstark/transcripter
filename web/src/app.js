@@ -28,7 +28,9 @@ const ui = {
   model: $("model"),
   diarize: $("diarize"),
   speakers: $("speakers"),
-  tbody: document.querySelector("#sessions tbody"),
+  list: $("sessions"),
+  recent: $("recent"),
+  search: $("search"),
   empty: $("empty"),
   file: $("file"),
   work: $("work"),
@@ -61,12 +63,21 @@ const engine = navigator.gpu ? "WebGPU" : window.crossOriginIsolated ? "CPU (meh
 $("stat-engine").textContent = engine;
 $("engine").textContent = `Lokal · ${engine}`;
 
-// Navigation: aktiven Eintrag markieren
-document.querySelectorAll("nav a").forEach((a) =>
-  a.addEventListener("click", () => {
-    document.querySelectorAll("nav a").forEach((x) => x.classList.toggle("active", x === a));
-  }),
-);
+// ---------- Seiten: #aufnehmen (Dashboard) und #transkripte (alle Transkripte) ----------
+const PAGES = {
+  record: ["Meeting-Transkription", "Aufnehmen, lokal transkribieren, als Markdown speichern"],
+  transcripts: ["Transkripte", "Alle Aufnahmen und Transkripte in diesem Browser"],
+};
+function showView(name) {
+  if (!PAGES[name]) name = "record";
+  document.querySelectorAll(".view").forEach((v) => (v.hidden = v.dataset.view !== name));
+  document.querySelectorAll("nav a").forEach((a) => a.classList.toggle("active", a.dataset.view === name));
+  [$("page-title").textContent, $("page-sub").textContent] = PAGES[name];
+  window.scrollTo(0, 0);
+}
+const viewFromHash = () => (location.hash === "#transkripte" ? "transcripts" : "record");
+window.addEventListener("hashchange", () => showView(viewFromHash()));
+showView(viewFromHash());
 
 // Pegelanzeige
 const meter = $("meter");
@@ -421,37 +432,64 @@ function download(blob, filename) {
 let viewing = null;
 function showTranscript(session) {
   viewing = session;
-  ui.viewer.hidden = false;
+  if (location.hash !== "#transkripte") location.hash = "#transkripte";
+  else showView("transcripts");
+  $("viewer-empty").hidden = true;
+  $("viewer-body").hidden = false;
   ui.viewerTitle.textContent = sessionTitle(session.startedAt);
-  renderTranscript(session.transcript);
-  ui.viewer.scrollIntoView({ behavior: "smooth" });
+  const tracks = Object.keys(session.tracks)
+    .map((k) => ({ mic: "Mikrofon", system: "Teams/Zoom-Ton", file: "Audiodatei" })[k] || k)
+    .join(" + ");
+  $("viewer-meta").textContent = `${session.duration ? formatTimestamp(session.duration) : "–"} · ${tracks}`;
+  $("copy").disabled = $("download-md").disabled = !session.transcript;
+  $("retranscribe").textContent = session.transcript ? "Neu transkribieren" : "Jetzt transkribieren";
+  $("retranscribe").disabled = queue.includes(session.id);
+  if (session.transcript) renderTranscript(session.transcript);
+  else {
+    ui.transcript.replaceChildren();
+    const p = document.createElement("p");
+    p.className = "empty";
+    p.textContent = queue.includes(session.id) ? "Wird gerade transkribiert …" : "Noch nicht transkribiert.";
+    ui.transcript.append(p);
+  }
+  markSelected();
 }
-$("close-viewer").onclick = () => (ui.viewer.hidden = true);
+function markSelected() {
+  ui.list.querySelectorAll(".item").forEach((el) => el.classList.toggle("selected", el.dataset.id === viewing?.id));
+}
 $("copy").onclick = () => navigator.clipboard.writeText(viewing?.transcript || "");
 $("download-md").onclick = () =>
-  viewing && download(new Blob([viewing.transcript], { type: "text/markdown" }), `${sessionFileName(viewing.startedAt)}.md`);
-
-function button(text, onclick, disabled = false, cls = "") {
-  const b = document.createElement("button");
-  b.className = `btn ${cls}`.trim();
-  b.textContent = text;
-  b.disabled = disabled;
-  b.onclick = onclick;
-  return b;
-}
-
-function cell(content) {
-  const td = document.createElement("td");
-  if (typeof content === "string") td.textContent = content;
-  else td.append(content);
-  return td;
-}
+  viewing?.transcript &&
+  download(new Blob([viewing.transcript], { type: "text/markdown" }), `${sessionFileName(viewing.startedAt)}.md`);
+$("retranscribe").onclick = () => viewing && enqueue(viewing.id);
+$("download-audio").onclick = () => {
+  if (!viewing) return;
+  for (const [key, t] of Object.entries(viewing.tracks)) {
+    const ext = (t.blob.type || "").includes("ogg") ? "ogg" : (t.blob.name?.split(".").pop() ?? "webm");
+    download(t.blob, `${sessionFileName(viewing.startedAt)}_${key}.${ext}`);
+  }
+};
+$("delete").onclick = async () => {
+  if (!viewing || queue.includes(viewing.id)) return;
+  if (!confirm("Aufnahme und Transkript endgültig löschen?")) return;
+  await deleteSession(viewing.id);
+  viewing = null;
+  $("viewer-body").hidden = true;
+  $("viewer-empty").hidden = false;
+  render();
+};
 
 function chip(text, cls) {
   const c = document.createElement("span");
   c.className = `chip ${cls}`;
   c.textContent = text;
   return c;
+}
+
+/** Erster gesprochener Satz als Vorschau */
+function preview(markdown) {
+  const m = markdown?.match(/^\*\*\[[\d:]+\]\*\*(?: \*\*.+?:\*\*)? (.*)$/m);
+  return m ? m[1] : "";
 }
 
 /** Markdown-Transkript als Gesprächsverlauf anzeigen (Zeitstempel, Sprecher, Text). */
@@ -516,44 +554,51 @@ function updateStats(sessions) {
   $("stat-time").textContent = `${Math.floor(total / 3600)}:${String(Math.floor((total % 3600) / 60)).padStart(2, "0")}`;
 }
 
+function item(s) {
+  const el = document.createElement("button");
+  el.className = "item";
+  el.dataset.id = s.id;
+  const inQueue = queue.includes(s.id);
+  const state = inQueue ? chip("läuft", "busy") : s.transcript ? chip("✓ Fertig", "done") : chip("Offen", "open");
+  const head = document.createElement("div");
+  head.className = "item-head";
+  const title = document.createElement("strong");
+  title.textContent = new Date(s.startedAt).toLocaleString("de-DE", { dateStyle: "medium", timeStyle: "short" });
+  head.append(title, state);
+  const meta = document.createElement("div");
+  meta.className = "item-meta";
+  meta.textContent = `${s.duration ? formatTimestamp(s.duration) : "–"}${s.tracks.file ? " · Audiodatei" : ""}`;
+  const text = document.createElement("div");
+  text.className = "item-preview";
+  text.textContent = preview(s.transcript) || (s.transcript ? "Keine Sprache erkannt" : "Noch nicht transkribiert");
+  el.append(head, meta, text);
+  el.onclick = () => showTranscript(s);
+  return el;
+}
+
 async function render() {
   const sessions = await allSessions();
   updateStats(sessions);
-  ui.tbody.replaceChildren();
+  $("nav-count").textContent = sessions.length;
   ui.empty.hidden = sessions.length > 0;
-  for (const s of sessions) {
-    const tr = document.createElement("tr");
-    const inQueue = queue.includes(s.id);
-    const state = inQueue ? chip("läuft", "busy") : s.transcript ? chip("✓ Fertig", "done") : chip("Offen", "open");
-    const when = new Date(s.startedAt).toLocaleString("de-DE", { dateStyle: "medium", timeStyle: "short" });
-    tr.append(cell(s.tracks.file ? `${when} (Datei)` : when), cell(s.duration ? formatTimestamp(s.duration) : "–"), cell(state));
-    const actions = document.createElement("td");
-    actions.className = "actions";
-    actions.append(
-      button("Anzeigen", () => showTranscript(s), !s.transcript, "primary"),
-      button("Transkribieren", () => enqueue(s.id), inQueue),
-      button("Audio ↓", () => {
-        for (const [key, t] of Object.entries(s.tracks)) {
-          const ext = (t.blob.type || "").includes("ogg") ? "ogg" : (t.blob.name?.split(".").pop() ?? "webm");
-          download(t.blob, `${sessionFileName(s.startedAt)}_${key}.${ext}`);
-        }
-      }),
-      button(
-        "Löschen",
-        async () => {
-          if (!confirm("Aufnahme und Transkript endgültig löschen?")) return;
-          await deleteSession(s.id);
-          if (viewing?.id === s.id) ui.viewer.hidden = true;
-          render();
-        },
-        inQueue,
-        "danger",
-      ),
-    );
-    tr.append(actions);
-    ui.tbody.append(tr);
+  ui.recent.replaceChildren(...sessions.slice(0, 3).map(item));
+
+  const q = ui.search.value.trim().toLowerCase();
+  const hits = sessions.filter(
+    (s) =>
+      !q ||
+      (s.transcript || "").toLowerCase().includes(q) ||
+      new Date(s.startedAt).toLocaleString("de-DE").includes(q),
+  );
+  ui.list.replaceChildren(...hits.map(item));
+  $("no-hits").hidden = hits.length > 0 || !sessions.length;
+  if (viewing) {
+    viewing = sessions.find((s) => s.id === viewing.id) || null;
+    if (viewing && !$("viewer-body").hidden && viewFromHash() === "transcripts") showTranscript(viewing);
   }
+  markSelected();
 }
+ui.search.oninput = () => render();
 
 ui.file.onchange = async () => {
   const file = ui.file.files[0];

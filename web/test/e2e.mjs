@@ -75,7 +75,7 @@ try {
   check((await page.textContent("#status")).includes("AUFNAHME"), "Aufnahme-Anzeige rot sichtbar");
   await page.waitForTimeout(3000);
   await page.click("#record");
-  await page.waitForFunction(() => document.querySelectorAll("#sessions tbody tr").length === 1);
+  await page.waitForFunction(() => document.querySelectorAll("#sessions .item").length === 1);
   const sessions = await page.evaluate(() => window.__transcripter.allSessions());
   check(sessions.length === 1 && sessions[0].tracks.mic, "Aufnahme mit Mikrofon-Spur gespeichert");
   check(sessions[0].duration > 2, `Dauer plausibel (${sessions[0].duration.toFixed(1)} s)`);
@@ -83,8 +83,11 @@ try {
   if (sample) {
     if (speakers !== null) await page.selectOption("#speakers", speakers);
     await page.setInputFiles("#file", sample);
-    await page.waitForSelector("#viewer:not([hidden])", { timeout: 15 * 60 * 1000 });
-    await page.waitForFunction(() => !window.__transcripter.queue.length);
+    await page.waitForFunction(() => window.__transcripter.queue.length === 0 && location.hash === "#transkripte", null, {
+      timeout: 15 * 60 * 1000,
+      polling: 1000,
+    });
+    await page.waitForSelector("#viewer-body:not([hidden])");
     const text = (await page.evaluate(() => window.__transcripter.allSessions())).find((x) => x.tracks.file)?.transcript || "";
     check((await page.locator("#transcript .utt").count()) > 0, "Transkript im Fenster als Gesprächsverlauf angezeigt");
     console.log(`--- Transkript ---\n${text}------------------`);
