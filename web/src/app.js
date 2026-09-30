@@ -25,6 +25,17 @@ const LABELS = { mic: "Ich/Raum", system: "Remote" };
 const TRACK_NAMES = { mic: "Mikrofon", system: "Teams/Zoom-Ton", file: "Audiodatei" };
 
 const $ = (id) => document.getElementById(id);
+
+// Fehler nie stumm lassen: sichtbar oben auf der Seite anzeigen
+function fatal(message) {
+  const el = $("fatal");
+  el.textContent = message;
+  el.hidden = false;
+}
+window.addEventListener("error", (e) => fatal(`Fehler: ${e.message}. Bitte Seite neu laden (Strg + F5).`));
+window.addEventListener("unhandledrejection", (e) =>
+  fatal(`Fehler: ${e.reason?.message || e.reason}. Bitte Seite neu laden (Strg + F5).`),
+);
 const ui = {
   status: $("status"),
   record: $("record"),
@@ -81,9 +92,22 @@ const db = await new Promise((resolve, reject) => {
     if (!d.objectStoreNames.contains("sessions")) d.createObjectStore("sessions", { keyPath: "id" });
     if (!d.objectStoreNames.contains("settings")) d.createObjectStore("settings");
   };
-  req.onsuccess = () => resolve(req.result);
+  // Ein anderer Tab mit älterer Version hält die Datenbank offen → Umstellung wartet, bis er zu ist
+  req.onblocked = () =>
+    fatal(
+      "Transcripter ist noch in einem anderen Tab oder Fenster geöffnet (ältere Version). Bitte diesen anderen Tab schließen – danach startet die Seite automatisch.",
+    );
+  req.onsuccess = () => {
+    $("fatal").hidden = true;
+    resolve(req.result);
+  };
   req.onerror = () => reject(req.error);
 });
+// Öffnet später eine neuere Version, diese nicht blockieren
+db.onversionchange = () => {
+  db.close();
+  fatal("Eine neuere Version von Transcripter wurde geöffnet. Bitte diese Seite neu laden (Strg + F5).");
+};
 const dbCall = (req) =>
   new Promise((resolve, reject) => {
     req.onsuccess = () => resolve(req.result);
@@ -137,10 +161,9 @@ function renderStorage() {
   }
   if (folder.state !== "granted") btn.className = "btn primary";
   box.classList.toggle("required", !folder.ready);
-  // Ohne Speicherordner keine Aufnahme und kein Upload
-  if (!rec) ui.record.disabled = !folder.ready;
+  // Ohne Speicherordner keine Aufnahme und kein Upload (Knöpfe bleiben klickbar und erklären, warum)
+  ui.record.classList.toggle("locked", !folder.ready && !rec);
   $("upload-label").classList.toggle("disabled", !folder.ready);
-  ui.file.disabled = !folder.ready;
   if (!rec && !folder.ready) {
     setStatus(
       folder.state === "unsupported"
@@ -157,7 +180,13 @@ $("storage-btn").onclick = async () => {
     if (folder.state === "prompt") await folder.grant();
     else await folder.pick();
   } catch (err) {
-    if (err.name !== "AbortError") alert(`Ordner konnte nicht verwendet werden: ${err.message}`);
+    if (err.name === "AbortError") return; // Dialog abgebrochen
+    const policy = err.name === "SecurityError" || err.name === "NotAllowedError";
+    alert(
+      policy
+        ? "Der Browser erlaubt dieser Seite keinen Ordnerzugriff – vermutlich durch eine Firmenrichtlinie (IT). Bitte die IT bitten, den Dateizugriff für diese Seite zu erlauben."
+        : `Ordner konnte nicht verwendet werden: ${err.message}`,
+    );
   }
   renderStorage();
   if (folder.ready) await syncAll();
@@ -286,8 +315,23 @@ function pickMime() {
   return "";
 }
 
+function needFolder() {
+  const box = $("storage");
+  box.classList.remove("attention");
+  void box.offsetWidth; // Animation neu starten
+  box.classList.add("attention");
+  box.scrollIntoView({ behavior: "smooth", block: "center" });
+  toast(
+    folder.state === "unsupported"
+      ? "Aufnahme nicht möglich: Dieser Browser kann keinen Speicherordner nutzen – bitte Edge oder Chrome verwenden."
+      : folder.state === "prompt"
+        ? "Aufnahme nicht möglich: Bitte oben zuerst den Zugriff auf den Speicherordner erlauben."
+        : "Aufnahme nicht möglich: Bitte oben zuerst einen Speicherordner wählen.",
+  );
+}
+
 async function startRecording() {
-  if (!folder.ready) return alert("Bitte zuerst oben einen Speicherordner wählen.");
+  if (!folder.ready) return needFolder();
   if (!ui.mic.checked && !ui.system.checked) return alert("Bitte mindestens eine Quelle auswählen.");
   const streams = {};
   const all = [];
@@ -784,12 +828,19 @@ async function render() {
 }
 ui.search.oninput = () => render();
 
+$("upload-label").addEventListener("click", (e) => {
+  if (!folder.ready) {
+    e.preventDefault();
+    needFolder();
+  }
+});
+
 ui.file.onchange = async () => {
   const file = ui.file.files[0];
   if (!file) return;
   if (!folder.ready) {
     ui.file.value = "";
-    return alert("Bitte zuerst oben einen Speicherordner wählen.");
+    return needFolder();
   }
   const session = {
     id: `f${Date.now()}`,
