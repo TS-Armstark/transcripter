@@ -24,6 +24,10 @@ Format: **Datum – Thema**: Erkenntnis → Konsequenz. Neueste oben.
   GitHub Action, ausgelöst durch einen gepushten Tag `vX.Y.Z` (Claude kann Tags per git pushen).
 
 ## Learnings
+- **2026-09-30 – Pages bei privatem Repo**: Im Free-Tarif nicht möglich. Mit Pro/Team ist die Seite trotzdem öffentlich;
+  eine Zugriffsbeschränkung gibt es nur bei Enterprise Cloud. → Repo öffentlich gemacht; die Seite enthält nur Code und
+  Modell, keine Nutzerdaten. `github.io` ist aus dem Cloud-Container nicht erreichbar, also Deploy über den Job-Status
+  prüfen.
 - **2026-09-30 – Firmenrechner blockiert die .exe**: Zero-Trust-Anwendungskontrolle (Endpoint-Schutz) auf Firmenrechnern:
   Unbekannte, unsignierte Programme werden blockiert, bis sie klassifiziert oder vom Admin freigegeben sind. Das nicht
   umgehen. → Browser-Version (`web/`) als Alternative. Für die .exe den Weg über die IT gehen (Freigabe des ganzen

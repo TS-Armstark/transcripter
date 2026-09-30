@@ -9,66 +9,144 @@
       window.coi = { coepCredentialless: () => true, quiet: true };
     </script>
     <script src="coi-serviceworker.min.js"></script>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='6' fill='%236c5ce7'/%3E%3Cpath d='M6 10v4M9 7v10M12 9v6M15 5v14M18 10v4' stroke='white' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E" />
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
-    <main>
-      <header>
-        <h1>Transcripter <small id="version"></small></h1>
-        <p class="sub">Meetings aufnehmen und transkribieren – <b>alles bleibt auf diesem Rechner</b>.</p>
-      </header>
+    <svg width="0" height="0" style="position: absolute" aria-hidden="true">
+      <symbol id="i-wave" viewBox="0 0 24 24"><path d="M4 10v4M8 6v12M12 9v6M16 4v16M20 10v4" /></symbol>
+      <symbol id="i-mic" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5 11a7 7 0 0 0 14 0M12 18v3" /></symbol>
+      <symbol id="i-list" viewBox="0 0 24 24"><path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01" /></symbol>
+      <symbol id="i-doc" viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" /><path d="M14 3v5h5M9 13h6M9 17h6" /></symbol>
+      <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></symbol>
+      <symbol id="i-check" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" /><path d="m8 12 3 3 5-6" /></symbol>
+      <symbol id="i-chip" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2" /><path d="M9 2v4M15 2v4M9 18v4M15 18v4M2 9h4M2 15h4M18 9h4M18 15h4" /></symbol>
+      <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></symbol>
+      <symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 16V4M7 9l5-5 5 5M5 20h14" /></symbol>
+      <symbol id="i-screen" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2" /><path d="M8 20h8M12 16v4" /></symbol>
+    </svg>
 
-      <div id="status" class="status idle">Bereit</div>
-
-      <section class="card">
-        <label><input type="checkbox" id="src-mic" checked /> Mikrofon (Ich/Raum)</label>
-        <label
-          ><input type="checkbox" id="src-system" checked /> Teams/Zoom-Ton
-          <span class="hint">– im folgenden Dialog „Bildschirm“ bzw. den Tab wählen und <b>„Systemaudio teilen“</b> anhaken</span></label
-        >
-        <label><input type="checkbox" id="auto" checked /> Nach dem Stoppen automatisch transkribieren</label>
-        <label
-          >Modell:
-          <select id="model">
-            <option value="small">Schnell (Whisper small, läuft überall)</option>
-            <option value="turbo">Genau (Whisper large-v3-turbo, braucht Grafik/WebGPU, ~1 GB Download)</option>
-          </select>
-        </label>
-        <button id="record" class="big">● Aufnahme starten</button>
-        <p class="hint">Hinweis: Aufnahmen nur mit Einverständnis aller Teilnehmer. Tab während der Aufnahme nicht schließen.</p>
-      </section>
-
-      <section class="card">
-        <h2>Aufnahmen</h2>
-        <table id="sessions">
-          <thead>
-            <tr><th>Aufnahme</th><th>Dauer</th><th>Transkript</th><th></th></tr>
-          </thead>
-          <tbody></tbody>
-        </table>
-        <p id="empty" class="hint">Noch keine Aufnahmen.</p>
-        <label class="file">Vorhandene Audiodatei transkribieren: <input type="file" id="file" accept="audio/*,video/*" /></label>
-        <div id="work" hidden>
-          <div id="work-label"></div>
-          <progress id="progress" max="100" value="0"></progress>
+    <div class="layout">
+      <aside class="sidebar">
+        <div class="brand">
+          <span class="brand-icon"><svg><use href="#i-wave" /></svg></span>
+          <span>Transcripter</span>
         </div>
-      </section>
-
-      <section class="card" id="viewer" hidden>
-        <h2 id="viewer-title"></h2>
-        <div class="row">
-          <button id="copy">Kopieren</button>
-          <button id="download-md">Als .md speichern</button>
-          <button id="close-viewer">Schließen</button>
+        <nav>
+          <a href="#card-record" class="active"><svg><use href="#i-mic" /></svg>Aufnehmen</a>
+          <a href="#card-sessions"><svg><use href="#i-list" /></svg>Aufnahmen</a>
+          <a href="#viewer"><svg><use href="#i-doc" /></svg>Transkript</a>
+        </nav>
+        <div class="sidebar-foot">
+          <div class="privacy"><svg><use href="#i-lock" /></svg><span>Alles bleibt lokal auf diesem Rechner</span></div>
+          <label class="btn-upload">
+            <svg><use href="#i-upload" /></svg>Audiodatei transkribieren
+            <input type="file" id="file" accept="audio/*,video/*" hidden />
+          </label>
         </div>
-        <pre id="transcript"></pre>
-      </section>
+      </aside>
 
-      <footer class="hint">
-        Spracherkennung: Whisper (OpenAI, MIT) über transformers.js (Apache-2.0) · Daten liegen nur im Browser-Speicher
-        dieses Rechners · <a href="https://github.com/TS-Armstark/transcripter">Quellcode</a>
-      </footer>
-    </main>
+      <div class="content">
+        <header class="topbar">
+          <div>
+            <h1>Meeting-Transkription</h1>
+            <p class="muted">Aufnehmen, lokal transkribieren, als Markdown speichern</p>
+          </div>
+          <div class="topbar-right">
+            <span class="pill" id="engine">–</span>
+            <span class="version" id="version"></span>
+          </div>
+        </header>
+
+        <section class="stats">
+          <div class="stat">
+            <div><div class="stat-value" id="stat-count">0</div><div class="stat-label">Aufnahmen</div></div>
+            <span class="stat-icon yellow"><svg><use href="#i-mic" /></svg></span>
+          </div>
+          <div class="stat">
+            <div><div class="stat-value" id="stat-done">0</div><div class="stat-label">Transkribiert</div></div>
+            <span class="stat-icon cyan"><svg><use href="#i-check" /></svg></span>
+          </div>
+          <div class="stat">
+            <div><div class="stat-value" id="stat-time">0:00</div><div class="stat-label">Gesamtdauer (h:mm)</div></div>
+            <span class="stat-icon pink"><svg><use href="#i-clock" /></svg></span>
+          </div>
+          <div class="stat">
+            <div><div class="stat-value small" id="stat-engine">–</div><div class="stat-label">Rechenwerk</div></div>
+            <span class="stat-icon green"><svg><use href="#i-chip" /></svg></span>
+          </div>
+        </section>
+
+        <section class="grid">
+          <div class="card record-card" id="card-record">
+            <div class="card-head">
+              <h2>Aufnahme</h2>
+              <span class="hint">Nur mit Einverständnis aller Teilnehmer</span>
+            </div>
+            <div id="status" class="status idle">Bereit</div>
+            <div class="record-body">
+              <button id="record" class="record-btn" aria-label="Aufnahme starten"><span class="dot"></span><span class="label">Aufnahme starten</span></button>
+              <div class="meter" id="meter" aria-hidden="true"></div>
+            </div>
+            <div class="options">
+              <label class="toggle"><input type="checkbox" id="src-mic" checked /><span class="switch"></span><svg><use href="#i-mic" /></svg>Mikrofon <small>(Ich/Raum)</small></label>
+              <label class="toggle"><input type="checkbox" id="src-system" checked /><span class="switch"></span><svg><use href="#i-screen" /></svg>Teams/Zoom-Ton <small>(Remote)</small></label>
+              <p class="hint indent">Beim Start „Bildschirm“ bzw. den Tab wählen und <b>„Systemaudio teilen“</b> anhaken.</p>
+              <label class="toggle"><input type="checkbox" id="auto" checked /><span class="switch"></span>Nach dem Stoppen automatisch transkribieren</label>
+              <label class="select">
+                <span>Modell</span>
+                <select id="model">
+                  <option value="small">Schnell – Whisper small (läuft überall)</option>
+                  <option value="turbo">Genau – Whisper large-v3-turbo (WebGPU, ~1 GB)</option>
+                </select>
+              </label>
+            </div>
+          </div>
+
+          <div class="card work-card">
+            <div class="card-head"><h2>Transkription</h2></div>
+            <div class="ring-wrap">
+              <div class="ring" id="ring" style="--p: 0">
+                <div class="ring-inner"><span id="ring-value">–</span><small id="ring-sub">Bereit</small></div>
+              </div>
+            </div>
+            <div id="work" hidden>
+              <div id="work-label" class="work-label"></div>
+              <progress id="progress" max="100" value="0"></progress>
+            </div>
+            <p id="work-idle" class="hint center">Aufnahmen werden nacheinander verarbeitet. Die erste Transkription lädt einmalig das Sprachmodell.</p>
+          </div>
+        </section>
+
+        <section class="card" id="card-sessions">
+          <div class="card-head"><h2>Aufnahmen</h2><span class="hint">im Browser-Speicher dieses Rechners</span></div>
+          <table id="sessions">
+            <thead>
+              <tr><th>Aufnahme</th><th>Dauer</th><th>Status</th><th></th></tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+          <p id="empty" class="empty">Noch keine Aufnahmen – starte oben die erste.</p>
+        </section>
+
+        <section class="card" id="viewer" hidden>
+          <div class="card-head">
+            <h2 id="viewer-title"></h2>
+            <div class="row">
+              <button id="copy" class="btn">Kopieren</button>
+              <button id="download-md" class="btn primary">Als .md speichern</button>
+              <button id="close-viewer" class="btn ghost">Schließen</button>
+            </div>
+          </div>
+          <div id="transcript" class="transcript"></div>
+        </section>
+
+        <footer class="muted small">
+          Spracherkennung: Whisper (OpenAI, MIT) über transformers.js (Apache-2.0) · Keine Daten verlassen diesen Rechner ·
+          <a href="https://github.com/TS-Armstark/transcripter">Quellcode</a>
+        </footer>
+      </div>
+    </div>
     <script type="module" src="app.js"></script>
   </body>
 </html>

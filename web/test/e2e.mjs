@@ -66,8 +66,8 @@ try {
   check(true, "Seite geladen, cross-origin-isoliert (Multithreading möglich)");
 
   // Aufnahme nur mit Mikrofon (Bildschirmfreigabe lässt sich headless nicht auswählen)
-  await page.uncheck("#src-system");
-  await page.uncheck("#auto");
+  await page.uncheck("#src-system", { force: true });
+  await page.uncheck("#auto", { force: true });
   await page.click("#record");
   await page.waitForSelector(".status.rec");
   check((await page.textContent("#status")).includes("AUFNAHME"), "Aufnahme-Anzeige rot sichtbar");
@@ -81,7 +81,9 @@ try {
   if (sample) {
     await page.setInputFiles("#file", sample);
     await page.waitForSelector("#viewer:not([hidden])", { timeout: 15 * 60 * 1000 });
-    const text = await page.textContent("#transcript");
+    await page.waitForFunction(() => !window.__transcripter.queue.length);
+    const text = (await page.evaluate(() => window.__transcripter.allSessions())).find((x) => x.tracks.file)?.transcript || "";
+    check((await page.locator("#transcript .utt").count()) > 0, "Transkript im Fenster als Gesprächsverlauf angezeigt");
     console.log(`--- Transkript ---\n${text}------------------`);
     const hits = expect.filter((w) => text.toLowerCase().includes(w.toLowerCase()));
     check(text.includes("**[00:00:"), "Transkript mit Zeitstempel erzeugt");
