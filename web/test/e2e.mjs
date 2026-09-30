@@ -92,9 +92,14 @@ try {
   check(true, "Seite geladen, cross-origin-isoliert (Multithreading möglich)");
 
   // Ohne Speicherordner keine Aufnahme
-  check(await page.isDisabled("#record"), "Aufnahme ohne Speicherordner gesperrt");
+  await page.click("#record");
+  await page.waitForSelector("#toast:not([hidden])");
+  check(
+    (await page.textContent("#toast")).includes("Speicherordner") && !(await page.locator(".status.rec").count()),
+    "Ohne Speicherordner: Aufnahme startet nicht, Hinweis erscheint",
+  );
   await page.click("#storage-btn");
-  await page.waitForFunction(() => !document.getElementById("record").disabled);
+  await page.waitForFunction(() => !document.getElementById("record").classList.contains("locked"));
   check((await page.textContent("#storage-title")).includes("Speicherordner"), "Speicherordner gewählt, Aufnahme freigegeben");
 
   // Aufnahme nur mit Mikrofon (Bildschirmfreigabe lässt sich headless nicht auswählen)
@@ -153,6 +158,28 @@ try {
       const same = (x, y) => seq.length === turns.length && turns.every((t, i) => turns.every((u, j) => (t === u) === (seq[i] === seq[j])));
       check(same(), `Sprecherwechsel erkannt: ${seq.join(" → ") || "keine Sprecher"} (erwartet ${turns.join(" → ")})`);
     }
+  }
+  // Anderer Tab mit älterer Datenbank-Version: Seite zeigt Hinweis statt stumm zu hängen
+  {
+    const ctx = await browser.newContext();
+    const old = await ctx.newPage();
+    await old.goto(`${url}style.css`);
+    await old.evaluate(
+      () =>
+        new Promise((r) => {
+          const q = indexedDB.open("transcripter", 1);
+          q.onupgradeneeded = () => q.result.createObjectStore("sessions", { keyPath: "id" });
+          q.onsuccess = () => ((window.keep = q.result), r());
+        }),
+    );
+    const p2 = await ctx.newPage();
+    await p2.goto(url);
+    await p2.waitForSelector("#fatal:not([hidden])", { timeout: 15000 });
+    check((await p2.textContent("#fatal")).includes("anderen Tab"), "Hinweis bei blockierendem alten Tab");
+    await old.close();
+    await p2.waitForFunction(() => window.__transcripter, null, { timeout: 15000 });
+    check(await p2.isHidden("#fatal"), "Seite startet, sobald der alte Tab geschlossen ist");
+    await ctx.close();
   }
   check(errors.length === 0, `keine JS-Fehler${errors.length ? `: ${errors.join(" | ")}` : ""}`);
 } finally {

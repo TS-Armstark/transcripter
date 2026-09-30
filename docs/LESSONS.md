@@ -24,6 +24,11 @@ Format: **Datum – Thema**: Erkenntnis → Konsequenz. Neueste oben.
   GitHub Action, ausgelöst durch einen gepushten Tag `vX.Y.Z` (Claude kann Tags per git pushen).
 
 ## Learnings
+- **2026-09-30 – IndexedDB-Upgrade blockiert**: Nach dem Wechsel auf DB-Version 2 hing die Seite beim User stumm.
+  Die Ursache war ein zweiter Tab mit der alten Version, der die DB offen hielt: `onupgradeneeded` wartet dann ewig,
+  und das top-level `await` blockiert alle Knöpfe. → `onblocked` zeigt einen Hinweis, `db.onversionchange` schließt die
+  DB für künftige Upgrades, globale Fehler werden sichtbar angezeigt. Regel: Bei DB-Versionssprüngen immer an offene
+  alte Tabs denken.
 - **2026-09-30 – Speicherordner testen**: `showDirectoryPicker` öffnet einen nativen Dialog und ist headless nicht
   automatisierbar. → Im E2E-Test per `addInitScript` durch das Origin Private File System ersetzen
   (`navigator.storage.getDirectory()`). Das ist ein echter `FileSystemDirectoryHandle`, damit werden Schreiben und
