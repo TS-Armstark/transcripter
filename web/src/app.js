@@ -27,12 +27,83 @@ const ui = {
   file: $("file"),
   work: $("work"),
   workLabel: $("work-label"),
-  progress: $("progress"),
+  progress: null, // siehe unten: Fortschritt → Ring
   viewer: $("viewer"),
   viewerTitle: $("viewer-title"),
   transcript: $("transcript"),
 };
-$("version").textContent = VERSION;
+$("version").textContent = `v${VERSION}`;
+
+// Fortschritt wird als Ring angezeigt (ui.progress.value = 0..100)
+const ring = $("ring");
+ui.progress = {
+  set value(v) {
+    const p = Math.max(0, Math.min(100, Math.round(v || 0)));
+    ring.style.setProperty("--p", p);
+    $("ring-value").textContent = `${p}%`;
+    $("ring-sub").textContent = "in Arbeit";
+  },
+};
+function resetRing(sub = "Bereit") {
+  ring.style.setProperty("--p", 0);
+  $("ring-value").textContent = "–";
+  $("ring-sub").textContent = sub;
+}
+
+// Rechenwerk anzeigen
+const engine = navigator.gpu ? "WebGPU" : window.crossOriginIsolated ? "CPU (mehrkernig)" : "CPU";
+$("stat-engine").textContent = engine;
+$("engine").textContent = `Lokal · ${engine}`;
+
+// Navigation: aktiven Eintrag markieren
+document.querySelectorAll("nav a").forEach((a) =>
+  a.addEventListener("click", () => {
+    document.querySelectorAll("nav a").forEach((x) => x.classList.toggle("active", x === a));
+  }),
+);
+
+// Pegelanzeige
+const meter = $("meter");
+const BARS = 36;
+for (let i = 0; i < BARS; i++) meter.append(document.createElement("span"));
+let meterCtx = null;
+let meterRaf = 0;
+function startMeter(streams) {
+  meterCtx = new AudioContext();
+  const analysers = streams.map((stream) => {
+    const a = meterCtx.createAnalyser();
+    a.fftSize = 256;
+    meterCtx.createMediaStreamSource(stream).connect(a);
+    return a;
+  });
+  const data = new Uint8Array(128);
+  const levels = new Array(BARS).fill(0);
+  meter.classList.add("live");
+  const draw = () => {
+    let peak = 0;
+    for (const a of analysers) {
+      a.getByteTimeDomainData(data);
+      for (const v of data) peak = Math.max(peak, Math.abs(v - 128) / 128);
+    }
+    levels.shift();
+    levels.push(Math.min(1, peak * 2.2));
+    meter.childNodes.forEach((bar, i) => (bar.style.height = `${8 + levels[i] * 92}%`));
+    meterRaf = requestAnimationFrame(draw);
+  };
+  draw();
+}
+function stopMeter() {
+  cancelAnimationFrame(meterRaf);
+  meterCtx?.close();
+  meterCtx = null;
+  meter.classList.remove("live");
+  meter.childNodes.forEach((bar) => (bar.style.height = "8%"));
+}
+function setRecordButton(on) {
+  ui.record.classList.toggle("recording", on);
+  ui.record.querySelector(".label").textContent = on ? "Aufnahme beenden" : "Aufnahme starten";
+  ui.record.setAttribute("aria-label", on ? "Aufnahme beenden" : "Aufnahme starten");
+}
 
 // ---------- Ablage (IndexedDB, nur in diesem Browser) ----------
 const db = await new Promise((resolve, reject) => {
@@ -132,7 +203,12 @@ async function startRecording() {
 
   // Beendet der Nutzer die Bildschirmfreigabe über die Browser-Leiste, läuft das Mikrofon weiter.
   ui.mic.disabled = ui.system.disabled = true;
-  ui.record.textContent = "■ Aufnahme beenden";
+  setRecordButton(true);
+  try {
+    startMeter(Object.values(streams));
+  } catch (err) {
+    console.warn("Pegelanzeige nicht verfügbar", err);
+  }
   tick();
   timer = setInterval(tick, 500);
 }
@@ -153,6 +229,7 @@ async function stopRecording() {
       ({ mr }) => new Promise((resolve) => (mr.state === "inactive" ? resolve() : ((mr.onstop = resolve), mr.stop()))),
     ),
   );
+  stopMeter();
   current.streams.forEach((s) => s.getTracks().forEach((t) => t.stop()));
 
   const tracks = {};
@@ -163,7 +240,7 @@ async function stopRecording() {
   await saveSession(session);
 
   ui.mic.disabled = ui.system.disabled = false;
-  ui.record.textContent = "● Aufnahme starten";
+  setRecordButton(false);
   document.title = "Transcripter";
   setStatus(`Gespeichert (${formatTimestamp(duration)})`);
   await render();
@@ -200,6 +277,7 @@ async function runQueue() {
   }
   busy = false;
   ui.work.hidden = true;
+  resetRing("Fertig");
 }
 
 async function decodeMono16k(blob) {
@@ -284,7 +362,7 @@ function showTranscript(session) {
   viewing = session;
   ui.viewer.hidden = false;
   ui.viewerTitle.textContent = sessionTitle(session.startedAt);
-  ui.transcript.textContent = session.transcript;
+  renderTranscript(session.transcript);
   ui.viewer.scrollIntoView({ behavior: "smooth" });
 }
 $("close-viewer").onclick = () => (ui.viewer.hidden = true);
@@ -292,35 +370,88 @@ $("copy").onclick = () => navigator.clipboard.writeText(viewing?.transcript || "
 $("download-md").onclick = () =>
   viewing && download(new Blob([viewing.transcript], { type: "text/markdown" }), `${sessionFileName(viewing.startedAt)}.md`);
 
-function button(text, onclick, disabled = false) {
+function button(text, onclick, disabled = false, cls = "") {
   const b = document.createElement("button");
+  b.className = `btn ${cls}`.trim();
   b.textContent = text;
   b.disabled = disabled;
   b.onclick = onclick;
   return b;
 }
 
+function cell(content) {
+  const td = document.createElement("td");
+  if (typeof content === "string") td.textContent = content;
+  else td.append(content);
+  return td;
+}
+
+function chip(text, cls) {
+  const c = document.createElement("span");
+  c.className = `chip ${cls}`;
+  c.textContent = text;
+  return c;
+}
+
+/** Markdown-Transkript als Gesprächsverlauf anzeigen (Zeitstempel, Sprecher, Text). */
+function renderTranscript(markdown) {
+  ui.transcript.replaceChildren();
+  for (const line of markdown.split("\n")) {
+    const m = line.match(/^\*\*\[(\d\d:\d\d:\d\d)\]\*\*(?: \*\*(.+?):\*\*)? (.*)$/);
+    if (m) {
+      const [, time, who, text] = m;
+      const row = document.createElement("div");
+      row.className = `utt ${who === "Remote" ? "remote" : ""}`;
+      const t = document.createElement("time");
+      t.textContent = time;
+      const bubble = document.createElement("div");
+      bubble.className = "bubble";
+      if (who) {
+        const w = document.createElement("div");
+        w.className = "who";
+        w.textContent = who;
+        bubble.append(w);
+      }
+      bubble.append(document.createTextNode(text));
+      row.append(t, bubble);
+      ui.transcript.append(row);
+    } else if (line.startsWith("Aufgenommen:")) {
+      const meta = document.createElement("div");
+      meta.className = "meta";
+      meta.textContent = line;
+      ui.transcript.append(meta);
+    }
+  }
+  if (!ui.transcript.querySelector(".utt")) {
+    const empty = document.createElement("p");
+    empty.className = "empty";
+    empty.textContent = "Keine Sprache erkannt.";
+    ui.transcript.append(empty);
+  }
+}
+
+function updateStats(sessions) {
+  const total = sessions.reduce((a, s) => a + (s.duration || 0), 0);
+  $("stat-count").textContent = sessions.length;
+  $("stat-done").textContent = sessions.filter((s) => s.transcript).length;
+  $("stat-time").textContent = `${Math.floor(total / 3600)}:${String(Math.floor((total % 3600) / 60)).padStart(2, "0")}`;
+}
+
 async function render() {
   const sessions = await allSessions();
+  updateStats(sessions);
   ui.tbody.replaceChildren();
   ui.empty.hidden = sessions.length > 0;
   for (const s of sessions) {
     const tr = document.createElement("tr");
     const inQueue = queue.includes(s.id);
-    const state = inQueue ? "läuft …" : s.transcript ? "✔" : "–";
-    for (const text of [
-      new Date(s.startedAt).toLocaleString("de-DE", { dateStyle: "short", timeStyle: "short" }),
-      s.duration ? formatTimestamp(s.duration) : "?",
-      state,
-    ]) {
-      const td = document.createElement("td");
-      td.textContent = text;
-      tr.append(td);
-    }
+    const state = inQueue ? chip("läuft", "busy") : s.transcript ? chip("✓ Fertig", "done") : chip("Offen", "open");
+    const when = new Date(s.startedAt).toLocaleString("de-DE", { dateStyle: "medium", timeStyle: "short" });
+    tr.append(cell(s.tracks.file ? `${when} (Datei)` : when), cell(s.duration ? formatTimestamp(s.duration) : "–"), cell(state));
     const actions = document.createElement("td");
     actions.className = "actions";
     actions.append(
-      button("Anzeigen", () => showTranscript(s), !s.transcript),
+      button("Anzeigen", () => showTranscript(s), !s.transcript, "primary"),
       button("Transkribieren", () => enqueue(s.id), inQueue),
       button("Audio ↓", () => {
         for (const [key, t] of Object.entries(s.tracks)) {
@@ -328,12 +459,17 @@ async function render() {
           download(t.blob, `${sessionFileName(s.startedAt)}_${key}.${ext}`);
         }
       }),
-      button("Löschen", async () => {
-        if (!confirm("Aufnahme und Transkript endgültig löschen?")) return;
-        await deleteSession(s.id);
-        if (viewing?.id === s.id) ui.viewer.hidden = true;
-        render();
-      }, inQueue),
+      button(
+        "Löschen",
+        async () => {
+          if (!confirm("Aufnahme und Transkript endgültig löschen?")) return;
+          await deleteSession(s.id);
+          if (viewing?.id === s.id) ui.viewer.hidden = true;
+          render();
+        },
+        inQueue,
+        "danger",
+      ),
     );
     tr.append(actions);
     ui.tbody.append(tr);

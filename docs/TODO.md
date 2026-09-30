@@ -72,6 +72,8 @@ Später geklärt:
 - [x] Energie-basierte Spracherkennung (statt VAD), Halluzinations-Filter, Echo-Filter, Markdown-Export
 - [x] Audiodatei hochladen und transkribieren
 - [x] GitHub-Pages-Workflow mit E2E-Test (Chromium, espeak-Sprachprobe)
+- [x] Modernes Dashboard-Design: Seitenleiste, Kennzahl-Kacheln, Pegelanzeige, Fortschrittsring, Status-Chips,
+      Transkript als Gesprächsverlauf, responsiv (Handy)
 - [x] GitHub Pages aktiviert, Repo öffentlich (30.09.2026) – https://ts-armstark.github.io/transcripter/
 - [ ] Test durch User auf Firmenrechner (Edge/Chrome): Bildschirmfreigabe mit Systemaudio erlaubt? Modell-Download ok?
 - [ ] Parallel: IT-Freigabe der .exe anstoßen
