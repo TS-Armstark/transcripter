@@ -21,19 +21,25 @@ Später geklärt:
 ## Meilenstein 0 – Grundstruktur
 - [x] CLAUDE.md, HANDOFF, TODO, LESSONS, RELEASE anlegen
 - [x] Release-Workflow (Tag → GitHub-Release)
-- [ ] Python-Projektgerüst (`pyproject.toml`, `src/transcripter/`, `tests/`)
-- [ ] CI: Lint + Tests bei Push
+- [x] Python-Projektgerüst (`pyproject.toml`, `src/transcripter/`, `tests/`)
+- [x] CI: Lint + Tests bei Push (Windows, macOS, Linux)
+- [x] Projekt-Lizenz: MIT (`LICENSE`)
+- [x] Standard-Branch auf GitHub auf `main` umgestellt
 
 ## Meilenstein 1 – Aufnahme
-- [ ] Mikrofon aufnehmen (WAV)
-- [ ] System-Audio aufnehmen (Loopback, für Teams/Zoom)
-- [ ] Beides parallel als getrennte Spuren + Mix
-- [ ] Sichtbarer Aufnahme-Hinweis
+- [x] Mikrofon aufnehmen (WAV) – `devices.py`/`recorder.py`, Code fertig, **auf echtem Windows-PC noch ungetestet**
+- [x] System-Audio aufnehmen (WASAPI-Loopback) – dito
+- [x] Beides parallel als getrennte Mono-Spuren (`mic.wav`, `system.wav`) + `session.json`
+- [x] Stille auffüllen, wenn Loopback nichts liefert (Spuren bleiben synchron)
+- [x] Sichtbarer Aufnahme-Hinweis (vorerst in der Kommandozeile, GUI folgt)
+- [ ] **Test durch User auf Windows**: `transcripter devices` und `transcripter record` (Anleitung im README)
+- [ ] Optional: Mix-Spur zum Anhören
+- [ ] Geräteauswahl statt nur Standardgeräte
 
 ## Meilenstein 2 – Transkription
 - [ ] faster-whisper lokal einbinden
 - [ ] Modell-Download einmalig / Offline-Betrieb sicherstellen
-- [ ] Transkript als Markdown mit Zeitstempeln und Sprechern exportieren
+- [x] Transkript als Markdown mit Zeitstempeln und Sprechern exportieren (`export.py`)
 - [ ] Einfache Sprechertrennung über die Spuren: Mikrofon = „Ich/Raum“, System-Audio = „Remote“
 - [ ] Echte Sprechertrennung (lokal, z. B. sherpa-onnx) – Sprecher 1, 2, 3 …
 - [ ] Automatische Auswahl GPU/CPU und passende Modellgröße
@@ -43,7 +49,7 @@ Später geklärt:
 - [ ] PyInstaller-Build (onedir) → portable ZIP im Release-Workflow
 - [ ] Modell + Lizenztexte (`LICENSES/`) ins Paket
 - [ ] Zweites Asset: GPU-Paket (CUDA-Bibliotheken), jede Datei < 2 GB (GitHub-Limit)
-- [ ] Speicherort lokal; Warnung, wenn der Ordner von OneDrive o. Ä. synchronisiert wird
+- [~] Speicherort lokal; Warnung, wenn der Ordner von OneDrive o. Ä. synchronisiert wird (Erkennung in `paths.py` fertig, Warnung in GUI fehlt)
 - [ ] Erstes Release `v0.1.0`
 
 ## Meilenstein 4 – macOS

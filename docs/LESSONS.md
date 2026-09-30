@@ -24,4 +24,15 @@ Format: **Datum – Thema**: Erkenntnis → Konsequenz. Neueste oben.
   GitHub Action, ausgelöst durch einen gepushten Tag `vX.Y.Z` (Claude kann Tags per git pushen).
 
 ## Learnings
-- _noch keine_
+- **2026-09-30 – WASAPI-Loopback liefert bei Stille keine Daten**: Solange nichts abgespielt wird, kommen keine
+  Callbacks. Ohne Gegenmaßnahme wäre `system.wav` kürzer als `mic.wav` und die Zeitstempel liefen auseinander.
+  → `TrackWriter.pad_to_clock()` füllt ab 0,5 s Rückstand gegenüber der Uhr mit Stille auf. Auf echter Hardware
+  prüfen, ob die Spuren nach 30+ Minuten noch synchron sind.
+- **2026-09-30 – Eine Audio-Bibliothek**: Mikrofon und Loopback laufen beide über PyAudioWPatch (WASAPI), statt
+  zusätzlich sounddevice zu nutzen. So gibt es keine zwei PortAudio-Kopien im Prozess.
+- **2026-09-30 – Tests mit `tmp_path`**: Der pytest-`tmp_path` enthält den Namen der Testfunktion. Enthält dieser
+  Name ein Wort wie „onedrive“, schlägt die Pfad-Erkennung darauf an. → Testnamen ohne solche Wörter wählen.
+- **2026-09-30 – Abhängigkeiten**: Schwere Laufzeit-Pakete (PySide6, faster-whisper) liegen im Extra `[app]`. CI und
+  Unit-Tests brauchen nur `[dev]`, damit sie schnell bleiben.
+- **2026-09-30 – Repo ist öffentlich**: Umso strenger gilt: keine internen Infos, Aufnahmen oder Testaudios
+  mit echten Stimmen committen.

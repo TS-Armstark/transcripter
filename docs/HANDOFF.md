@@ -3,16 +3,19 @@
 > Wird am Ende jeder Session überschrieben. Kurz halten.
 
 **Datum:** 2026-09-30
-**Stand:** Grundstruktur + Produktentscheidungen dokumentiert. Noch kein Programmcode.
+**Stand:** Meilenstein 0 fertig, Meilenstein 1 (Aufnahme Windows) als Code fertig, auf echter Hardware ungetestet.
+PR TS-Armstark/transcripter#1 (Gerüst + Aufnahme) offen, CI grün.
 
 ## Was in der letzten Session passiert ist
-- Doku-Struktur, `.gitignore` und Release-Workflow angelegt und gepusht
-- Produktentscheidungen des Users in `TODO.md` / `LESSONS.md` festgehalten
+- `main` angelegt, Standard-Branch umgestellt (User), MIT-Lizenz
+- Python-Gerüst, CI (Windows/macOS/Linux), Markdown-Export, Speicherort-/Cloud-Prüfung
+- Aufnahme: `recorder.py` (Spuren, Stille-Auffüllen, `session.json`), `devices.py` (PyAudioWPatch: Mikrofon + WASAPI-Loopback),
+  CLI `transcripter devices` / `transcripter record`
 
 ## Nächster Schritt
-Restliche offene Punkte klären (GUI vs. CLI, Modell-Bereitstellung, `main`-Branch),
-dann Meilenstein 0 (Python-Gerüst) und Meilenstein 1 (Aufnahme unter Windows).
+1. User testet Aufnahme auf Windows (README → „Aufnahme testen“) und meldet Ergebnis
+2. Meilenstein 2: faster-whisper je Spur transkribieren → Markdown (Sprecher „Ich/Raum“/„Remote“)
 
 ## Blocker / Offene Fragen
-- Siehe `TODO.md` → „Noch offen“
-- Tag-Push/Release noch nicht getestet (erst beim ersten echten Release v0.1.0)
+- Aufnahme nur mit Fakes getestet (Cloud-Container hat keine Audio-Hardware)
+- Tag-Push/Release noch nicht getestet
