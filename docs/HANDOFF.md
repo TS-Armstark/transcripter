@@ -3,19 +3,19 @@
 > Wird am Ende jeder Session überschrieben. Kurz halten.
 
 **Datum:** 2026-09-30
-**Stand:** Test-Release **v0.1.0-beta.1** veröffentlicht (Windows, nur CPU, Modell enthalten, ZIP ~776 MB):
-https://github.com/TS-Armstark/transcripter/releases/tag/v0.1.0-beta.1
-Enthält Aufnahme (Mikrofon + System-Audio), Transkription (large-v3-turbo int8), Programmfenster.
+**Stand:**
+- Desktop: Test-Release v0.1.0-beta.1 (Windows, CPU). **Auf dem Firmenrechner des Users blockiert** (Endpoint-Schutz der Firma).
+- Neu: **Browser-Version** (`web/`) als Alternative – Aufnahme + lokale Transkription im Browser, GitHub Pages.
 
 ## Was in der letzten Session passiert ist
-- PRs #1–#3 gemergt: Gerüst, Aufnahme, Transkription, GUI, Release-Build
-- Release per `workflow_dispatch` (Tag-Push aus der Cloud-Session nicht möglich, siehe LESSONS)
+- Browser-Version gebaut: `web/src` (app.js, worker.js, lib.js), Build `web/build.mjs`, Tests (Node + Chromium-E2E)
+- Workflow `pages.yml`: Whisper small mitliefern, E2E mit deutscher espeak-Sprachprobe, Deploy auf Pages
 
 ## Nächster Schritt
-1. **Rückmeldung User** zum Test-Release: Startet die .exe? Aufnahme Mikrofon/Teams ok? Transkript-Qualität,
-   Echo-Filter, Dauer auf CPU? Bei Fehlern `%LOCALAPPDATA%\Transcripter\transcripter.log` anfordern.
-2. Danach nach Priorität des Users: GPU-Paket, Geräteauswahl, echte Sprechertrennung (sherpa-onnx), macOS
+1. User aktiviert GitHub Pages (Settings → Pages → Source: GitHub Actions), dann Deploy von `main`
+2. User testet https://ts-armstark.github.io/transcripter/ auf dem Firmenrechner (Edge/Chrome)
+3. Parallel: IT-Freigabe der .exe (Mail an IT – Empfänger vom User erfragen)
 
 ## Blocker / Offene Fragen
-- Auf echter Windows-Hardware mit Mikrofon noch ungetestet (nur CI-Selbsttest ohne Audio-Geräte)
-- Unsignierte .exe → SmartScreen-Warnung (Code-Signing mit IT klären)
+- Unklar, ob Firmen-Browser Bildschirmfreigabe mit Systemaudio und den Modell-Download (Pages/Hugging Face) erlaubt
+- Modell „Genau“ (large-v3-turbo) kommt von Hugging Face und braucht WebGPU

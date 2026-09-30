@@ -65,3 +65,13 @@ Später geklärt:
 - [ ] System-Audio auf macOS (ScreenCaptureKit, ab macOS 13, oder virtueller Treiber wie BlackHole)
 - [ ] macOS-Build im Release-Workflow
 - [ ] Signierung/Notarisierung klären (sonst Gatekeeper-Warnung)
+
+## Browser-Version (`web/`) – für Rechner, auf denen die .exe per Richtlinie gesperrt ist
+- [x] Aufnahme Mikrofon + geteilter System-/Tab-Ton (getDisplayMedia), Ablage in IndexedDB
+- [x] Transkription im Web-Worker (transformers.js 3.8.1): Whisper small (q8, WASM, mitgeliefert) / large-v3-turbo (WebGPU, von HF)
+- [x] Energie-basierte Spracherkennung (statt VAD), Halluzinations-Filter, Echo-Filter, Markdown-Export
+- [x] Audiodatei hochladen und transkribieren
+- [x] GitHub-Pages-Workflow mit E2E-Test (Chromium, espeak-Sprachprobe)
+- [ ] **User: GitHub Pages aktivieren** (Settings → Pages → Source: GitHub Actions)
+- [ ] Test durch User auf Firmenrechner (Edge/Chrome): Bildschirmfreigabe mit Systemaudio erlaubt? Modell-Download ok?
+- [ ] Parallel: IT-Freigabe der .exe anstoßen

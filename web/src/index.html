@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Transcripter</title>
+    <!-- Setzt COOP/COEP per Service-Worker → Multithreading für WebAssembly (deutlich schneller) -->
+    <script>
+      window.coi = { coepCredentialless: () => true, quiet: true };
+    </script>
+    <script src="coi-serviceworker.min.js"></script>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <main>
+      <header>
+        <h1>Transcripter <small id="version"></small></h1>
+        <p class="sub">Meetings aufnehmen und transkribieren – <b>alles bleibt auf diesem Rechner</b>.</p>
+      </header>
+
+      <div id="status" class="status idle">Bereit</div>
+
+      <section class="card">
+        <label><input type="checkbox" id="src-mic" checked /> Mikrofon (Ich/Raum)</label>
+        <label
+          ><input type="checkbox" id="src-system" checked /> Teams/Zoom-Ton
+          <span class="hint">– im folgenden Dialog „Bildschirm“ bzw. den Tab wählen und <b>„Systemaudio teilen“</b> anhaken</span></label
+        >
+        <label><input type="checkbox" id="auto" checked /> Nach dem Stoppen automatisch transkribieren</label>
+        <label
+          >Modell:
+          <select id="model">
+            <option value="small">Schnell (Whisper small, läuft überall)</option>
+            <option value="turbo">Genau (Whisper large-v3-turbo, braucht Grafik/WebGPU, ~1 GB Download)</option>
+          </select>
+        </label>
+        <button id="record" class="big">● Aufnahme starten</button>
+        <p class="hint">Hinweis: Aufnahmen nur mit Einverständnis aller Teilnehmer. Tab während der Aufnahme nicht schließen.</p>
+      </section>
+
+      <section class="card">
+        <h2>Aufnahmen</h2>
+        <table id="sessions">
+          <thead>
+            <tr><th>Aufnahme</th><th>Dauer</th><th>Transkript</th><th></th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+        <p id="empty" class="hint">Noch keine Aufnahmen.</p>
+        <label class="file">Vorhandene Audiodatei transkribieren: <input type="file" id="file" accept="audio/*,video/*" /></label>
+        <div id="work" hidden>
+          <div id="work-label"></div>
+          <progress id="progress" max="100" value="0"></progress>
+        </div>
+      </section>
+
+      <section class="card" id="viewer" hidden>
+        <h2 id="viewer-title"></h2>
+        <div class="row">
+          <button id="copy">Kopieren</button>
+          <button id="download-md">Als .md speichern</button>
+          <button id="close-viewer">Schließen</button>
+        </div>
+        <pre id="transcript"></pre>
+      </section>
+
+      <footer class="hint">
+        Spracherkennung: Whisper (OpenAI, MIT) über transformers.js (Apache-2.0) · Daten liegen nur im Browser-Speicher
+        dieses Rechners · <a href="https://github.com/TS-Armstark/transcripter">Quellcode</a>
+      </footer>
+    </main>
+    <script type="module" src="app.js"></script>
+  </body>
+</html>

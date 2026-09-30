@@ -1,0 +1,86 @@
+name: Web-Version
+
+# Baut die Browser-Version (web/ → site/), liefert Whisper small mit, testet sie in Chromium
+# (Aufnahme mit simuliertem Mikrofon + echte Transkription einer deutschen Sprachprobe) und
+# veröffentlicht sie auf GitHub Pages (nur main bzw. manuell).
+on:
+  push:
+    branches: [main]
+    paths: ["web/**", ".github/workflows/pages.yml"]
+  pull_request:
+    paths: ["web/**", ".github/workflows/pages.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - run: npm ci
+      - run: npm test
+
+      - name: Modell-Cache
+        id: model-cache
+        uses: actions/cache@v4
+        with:
+          path: web/models
+          key: web-whisper-small-q8-v1
+
+      - name: Whisper small (q8) für die Seite herunterladen
+        if: steps.model-cache.outputs.cache-hit != 'true'
+        run: |
+          pip install huggingface_hub
+          python - <<'PY'
+          from huggingface_hub import snapshot_download
+          snapshot_download(
+              "Xenova/whisper-small",
+              local_dir="models/Xenova/whisper-small",
+              allow_patterns=["*.json", "onnx/encoder_model_quantized.onnx", "onnx/decoder_model_merged_quantized.onnx"],
+          )
+          PY
+
+      - run: du -ah models | sort -h | tail -8
+
+      - run: npm run build
+
+      - name: End-to-End-Test in Chromium (Aufnahme + Transkription)
+        run: |
+          npx playwright-core install --with-deps chromium
+          sudo apt-get install -y -q espeak-ng
+          espeak-ng -v de -s 140 -w sample.wav "Guten Morgen zusammen. Das ist ein kurzer Test der Transkription."
+          node test/e2e.mjs --transcribe sample.wav --expect morgen,test,transkription
+
+      - if: github.event_name != 'pull_request'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    if: github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

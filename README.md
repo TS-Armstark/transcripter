@@ -6,7 +6,11 @@ und transkribiert sie **lokal auf dem eigenen Rechner**. Keine Cloud, keine exte
 > Status: Testphase. Siehe `docs/TODO.md`.
 
 ## Nutzung
-Neueste Version unter **Releases** herunterladen (`Transcripter-…-windows.zip`), entpacken, `Transcripter.exe` starten.
+**Ohne Installation (Browser):** https://ts-armstark.github.io/transcripter/ in Edge oder Chrome öffnen.
+Die Spracherkennung läuft lokal im Browser; Aufnahmen und Transkripte bleiben im Browser-Speicher dieses Rechners.
+Für den Teams/Zoom-Ton beim Start „Bildschirm“ wählen und „Systemaudio teilen“ anhaken.
+
+**Desktop-Programm (Windows):** neueste Version unter **Releases** herunterladen (`Transcripter-…-windows.zip`), entpacken, `Transcripter.exe` starten.
 Details in `packaging/LIESMICH.txt` (liegt auch der ZIP bei).
 
 ## Entwicklung
