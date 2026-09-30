@@ -21,8 +21,10 @@ Später geklärt:
 ## Meilenstein 0 – Grundstruktur
 - [x] CLAUDE.md, HANDOFF, TODO, LESSONS, RELEASE anlegen
 - [x] Release-Workflow (Tag → GitHub-Release)
-- [ ] Python-Projektgerüst (`pyproject.toml`, `src/transcripter/`, `tests/`)
-- [ ] CI: Lint + Tests bei Push
+- [x] Python-Projektgerüst (`pyproject.toml`, `src/transcripter/`, `tests/`)
+- [x] CI: Lint + Tests bei Push (Windows, macOS, Linux)
+- [ ] Projekt-Lizenz festlegen (Repo ist öffentlich!)
+- [ ] Standard-Branch auf GitHub auf `main` umstellen (User, Settings → Branches)
 
 ## Meilenstein 1 – Aufnahme
 - [ ] Mikrofon aufnehmen (WAV)
@@ -33,7 +35,7 @@ Später geklärt:
 ## Meilenstein 2 – Transkription
 - [ ] faster-whisper lokal einbinden
 - [ ] Modell-Download einmalig / Offline-Betrieb sicherstellen
-- [ ] Transkript als Markdown mit Zeitstempeln und Sprechern exportieren
+- [x] Transkript als Markdown mit Zeitstempeln und Sprechern exportieren (`export.py`)
 - [ ] Einfache Sprechertrennung über die Spuren: Mikrofon = „Ich/Raum“, System-Audio = „Remote“
 - [ ] Echte Sprechertrennung (lokal, z. B. sherpa-onnx) – Sprecher 1, 2, 3 …
 - [ ] Automatische Auswahl GPU/CPU und passende Modellgröße
@@ -43,7 +45,7 @@ Später geklärt:
 - [ ] PyInstaller-Build (onedir) → portable ZIP im Release-Workflow
 - [ ] Modell + Lizenztexte (`LICENSES/`) ins Paket
 - [ ] Zweites Asset: GPU-Paket (CUDA-Bibliotheken), jede Datei < 2 GB (GitHub-Limit)
-- [ ] Speicherort lokal; Warnung, wenn der Ordner von OneDrive o. Ä. synchronisiert wird
+- [~] Speicherort lokal; Warnung, wenn der Ordner von OneDrive o. Ä. synchronisiert wird (Erkennung in `paths.py` fertig, Warnung in GUI fehlt)
 - [ ] Erstes Release `v0.1.0`
 
 ## Meilenstein 4 – macOS

@@ -24,4 +24,9 @@ Format: **Datum – Thema**: Erkenntnis → Konsequenz. Neueste oben.
   GitHub Action, ausgelöst durch einen gepushten Tag `vX.Y.Z` (Claude kann Tags per git pushen).
 
 ## Learnings
-- _noch keine_
+- **2026-09-30 – Tests mit `tmp_path`**: Der pytest-`tmp_path` enthält den Namen der Testfunktion. Enthält dieser
+  Name ein Wort wie „onedrive“, schlägt die Pfad-Erkennung darauf an. → Testnamen ohne solche Wörter wählen.
+- **2026-09-30 – Abhängigkeiten**: Schwere Laufzeit-Pakete (PySide6, faster-whisper) liegen im Extra `[app]`. CI und
+  Unit-Tests brauchen nur `[dev]`, damit sie schnell bleiben.
+- **2026-09-30 – Repo ist öffentlich**: Umso strenger gilt: keine internen Infos, Aufnahmen oder Testaudios
+  mit echten Stimmen committen.

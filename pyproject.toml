@@ -1,0 +1,45 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "transcripter"
+dynamic = ["version"]
+description = "Meetings lokal aufzeichnen und offline transkribieren"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = []
+
+[project.optional-dependencies]
+# Laufzeit-Abhängigkeiten der eigentlichen App (schwer, daher nicht im Kern/CI-Test)
+app = [
+    "PySide6>=6.7",
+    "faster-whisper>=1.1",
+    "numpy>=1.26",
+    "soundfile>=0.12",
+    "sounddevice>=0.5",
+    "PyAudioWPatch>=0.2.12; sys_platform == 'win32'",
+]
+dev = [
+    "pytest>=8",
+    "ruff>=0.6",
+]
+
+[project.scripts]
+transcripter = "transcripter.__main__:main"
+
+[tool.hatch.version]
+path = "src/transcripter/__init__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/transcripter"]
+
+[tool.ruff]
+line-length = 110
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
