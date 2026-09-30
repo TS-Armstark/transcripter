@@ -8,7 +8,11 @@ sobald ein Tag `vX.Y.Z` gepusht wird. Claude kann das selbst auslösen.
 2. Version festlegen (SemVer): `MAJOR.MINOR.PATCH`
    - PATCH = Bugfix, MINOR = neue Funktion, MAJOR = inkompatible Änderung
 3. Version in `src/transcripter/__init__.py` anheben (PEP 440, z. B. `0.1.0b1` für Tag `v0.1.0-beta.1`) und committen.
-4. Tag auf `main` setzen und pushen:
+4. **Weg A – Claude (Standard):** Workflow „Release“ per `workflow_dispatch` auf `main` starten, Eingabe
+   `tag = vX.Y.Z` (GitHub-MCP `actions_run_trigger`). Der Tag wird automatisch auf dem `main`-Stand angelegt.
+   Grund: Der Git-Proxy in Claude-Cloud-Sessions lässt nur Pushes auf den Arbeitsbranch zu, keine Tags.
+
+   **Weg B – lokal:** Tag auf `main` setzen und pushen:
    ```bash
    git checkout main && git pull
    git tag -a v0.1.0 -m "v0.1.0"
@@ -26,7 +30,7 @@ sobald ein Tag `vX.Y.Z` gepusht wird. Claude kann das selbst auslösen.
 ## Alternativ: manuell auslösen
 Die Action hat auch `workflow_dispatch` (Actions → Release → Run workflow):
 - ohne `tag`: nur bauen + testen, ZIP als Workflow-Artefakt (7 Tage) – gut zum Ausprobieren
-- mit bestehendem `tag`: zusätzlich veröffentlichen
+- mit `tag`: zusätzlich veröffentlichen (Tag wird angelegt, falls neu)
 
 ## Lokal bauen (Windows)
 ```powershell

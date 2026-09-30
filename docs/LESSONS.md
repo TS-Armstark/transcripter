@@ -24,6 +24,12 @@ Format: **Datum – Thema**: Erkenntnis → Konsequenz. Neueste oben.
   GitHub Action, ausgelöst durch einen gepushten Tag `vX.Y.Z` (Claude kann Tags per git pushen).
 
 ## Learnings
+- **2026-09-30 – Tag-Push aus der Cloud-Session nicht möglich**: `git push origin <tag>` bricht ab mit „remote end
+  hung up“; nur der Arbeitsbranch ist erlaubt. → Releases per `workflow_dispatch` mit Eingabe `tag`. Die
+  Release-Action legt den Tag dann auf `github.sha` an.
+- **2026-09-30 – Erster Release-Build**: Die Modell-Konvertierung mit `ctranslate2==4.5.0` + `transformers==4.46.3`
+  läuft (int8 ~0,8 GB, danach aus dem Cache). Die Windows-ZIP wird ~776 MB groß. Der Selbsttest der `.exe` mit dem
+  mitgelieferten Modell dauert ~25 s auf einem CI-Runner.
 - **2026-09-30 – Fenster-Build (`--windowed`)**: Hier gibt es kein stdout/stderr. `print` tut dann nichts, aber
   unbehandelte Fehler öffnen einen PyInstaller-Dialog, der z. B. die CI blockiert. → `selftest` fängt alles ab und
   meldet über Exit-Code und Log (`%LOCALAPPDATA%\Transcripter\transcripter.log`). Kommandozeilen-Befehle wie
