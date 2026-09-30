@@ -16,6 +16,4 @@ Gerüst per Pull Request nach `main` bringen, dann Meilenstein 1: Aufnahme unter
 (Mikrofon + WASAPI-Loopback, getrennte Spuren).
 
 ## Blocker / Offene Fragen
-- Standard-Branch auf GitHub steht noch auf dem Claude-Branch → muss der User auf `main` umstellen
-- Projekt-Lizenz nicht festgelegt (Repo ist öffentlich)
 - Tag-Push/Release noch nicht getestet

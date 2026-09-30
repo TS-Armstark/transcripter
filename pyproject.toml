@@ -8,6 +8,8 @@ dynamic = ["version"]
 description = "Meetings lokal aufzeichnen und offline transkribieren"
 readme = "README.md"
 requires-python = ">=3.11"
+license = "MIT"
+license-files = ["LICENSE"]
 dependencies = []
 
 [project.optional-dependencies]

@@ -23,8 +23,8 @@ Später geklärt:
 - [x] Release-Workflow (Tag → GitHub-Release)
 - [x] Python-Projektgerüst (`pyproject.toml`, `src/transcripter/`, `tests/`)
 - [x] CI: Lint + Tests bei Push (Windows, macOS, Linux)
-- [ ] Projekt-Lizenz festlegen (Repo ist öffentlich!)
-- [ ] Standard-Branch auf GitHub auf `main` umstellen (User, Settings → Branches)
+- [x] Projekt-Lizenz: MIT (`LICENSE`)
+- [x] Standard-Branch auf GitHub auf `main` umgestellt
 
 ## Meilenstein 1 – Aufnahme
 - [ ] Mikrofon aufnehmen (WAV)
