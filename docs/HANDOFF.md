@@ -3,17 +3,19 @@
 > Wird am Ende jeder Session überschrieben. Kurz halten.
 
 **Datum:** 2026-09-30
-**Stand:** Alle Grundentscheidungen getroffen, `main` angelegt, Python-Gerüst + CI auf dem Arbeitsbranch.
+**Stand:** Meilenstein 0 fertig, Meilenstein 1 (Aufnahme Windows) als Code fertig, auf echter Hardware ungetestet.
+PR TS-Armstark/transcripter#1 (Gerüst + Aufnahme) offen, CI grün.
 
 ## Was in der letzten Session passiert ist
-- Entscheidungen: PySide6-GUI, `large-v3-turbo` im Paket, portable ZIP (Basis + GPU-Paket)
-- `main` angelegt (Stand: nur Doku)
-- Python-Gerüst: `paths.py` (lokaler Datenordner, Erkennung von Cloud-Sync-Ordnern), `export.py` (Markdown-Export)
-- Tests (6, grün) und CI-Workflow `ci.yml` (ruff + pytest auf Windows/macOS/Linux)
+- `main` angelegt, Standard-Branch umgestellt (User), MIT-Lizenz
+- Python-Gerüst, CI (Windows/macOS/Linux), Markdown-Export, Speicherort-/Cloud-Prüfung
+- Aufnahme: `recorder.py` (Spuren, Stille-Auffüllen, `session.json`), `devices.py` (PyAudioWPatch: Mikrofon + WASAPI-Loopback),
+  CLI `transcripter devices` / `transcripter record`
 
 ## Nächster Schritt
-Gerüst per Pull Request nach `main` bringen, dann Meilenstein 1: Aufnahme unter Windows
-(Mikrofon + WASAPI-Loopback, getrennte Spuren).
+1. User testet Aufnahme auf Windows (README → „Aufnahme testen“) und meldet Ergebnis
+2. Meilenstein 2: faster-whisper je Spur transkribieren → Markdown (Sprecher „Ich/Raum“/„Remote“)
 
 ## Blocker / Offene Fragen
+- Aufnahme nur mit Fakes getestet (Cloud-Container hat keine Audio-Hardware)
 - Tag-Push/Release noch nicht getestet

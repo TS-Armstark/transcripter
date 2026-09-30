@@ -27,10 +27,14 @@ Später geklärt:
 - [x] Standard-Branch auf GitHub auf `main` umgestellt
 
 ## Meilenstein 1 – Aufnahme
-- [ ] Mikrofon aufnehmen (WAV)
-- [ ] System-Audio aufnehmen (Loopback, für Teams/Zoom)
-- [ ] Beides parallel als getrennte Spuren + Mix
-- [ ] Sichtbarer Aufnahme-Hinweis
+- [x] Mikrofon aufnehmen (WAV) – `devices.py`/`recorder.py`, Code fertig, **auf echtem Windows-PC noch ungetestet**
+- [x] System-Audio aufnehmen (WASAPI-Loopback) – dito
+- [x] Beides parallel als getrennte Mono-Spuren (`mic.wav`, `system.wav`) + `session.json`
+- [x] Stille auffüllen, wenn Loopback nichts liefert (Spuren bleiben synchron)
+- [x] Sichtbarer Aufnahme-Hinweis (vorerst in der Kommandozeile, GUI folgt)
+- [ ] **Test durch User auf Windows**: `transcripter devices` und `transcripter record` (Anleitung im README)
+- [ ] Optional: Mix-Spur zum Anhören
+- [ ] Geräteauswahl statt nur Standardgeräte
 
 ## Meilenstein 2 – Transkription
 - [ ] faster-whisper lokal einbinden

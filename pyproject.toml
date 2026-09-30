@@ -10,16 +10,16 @@ readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"
 license-files = ["LICENSE"]
-dependencies = []
+dependencies = [
+    "numpy>=1.26",
+    "soundfile>=0.12",
+]
 
 [project.optional-dependencies]
 # Laufzeit-Abhängigkeiten der eigentlichen App (schwer, daher nicht im Kern/CI-Test)
 app = [
     "PySide6>=6.7",
     "faster-whisper>=1.1",
-    "numpy>=1.26",
-    "soundfile>=0.12",
-    "sounddevice>=0.5",
     "PyAudioWPatch>=0.2.12; sys_platform == 'win32'",
 ]
 dev = [
