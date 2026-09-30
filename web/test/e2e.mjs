@@ -68,6 +68,7 @@ try {
   check(true, "Seite geladen, cross-origin-isoliert (Multithreading möglich)");
 
   // Aufnahme nur mit Mikrofon (Bildschirmfreigabe lässt sich headless nicht auswählen)
+  await page.fill("#title", "Testmeeting Vertrieb");
   await page.uncheck("#src-system", { force: true });
   await page.uncheck("#auto", { force: true });
   await page.click("#record");
@@ -79,9 +80,17 @@ try {
   const sessions = await page.evaluate(() => window.__transcripter.allSessions());
   check(sessions.length === 1 && sessions[0].tracks.mic, "Aufnahme mit Mikrofon-Spur gespeichert");
   check(sessions[0].duration > 2, `Dauer plausibel (${sessions[0].duration.toFixed(1)} s)`);
+  check(sessions[0].title === "Testmeeting Vertrieb", "Titel gespeichert");
+  await page.click("nav a[data-view=transcripts]");
+  await page.fill("#search", "vertrieb");
+  check((await page.locator("#sessions .item").count()) === 1, "Suche findet Aufnahme über den Titel");
+  await page.fill("#search", "gibtsnicht");
+  check((await page.locator("#sessions .item").count()) === 0, "Suche filtert");
+  await page.fill("#search", "");
+  await page.click("nav a[data-view=record]");
 
   if (sample) {
-    if (speakers !== null) await page.selectOption("#speakers", speakers);
+    if (speakers !== null) await page.fill("#speakers", speakers);
     await page.setInputFiles("#file", sample);
     await page.waitForFunction(() => window.__transcripter.queue.length === 0 && location.hash === "#transkripte", null, {
       timeout: 15 * 60 * 1000,

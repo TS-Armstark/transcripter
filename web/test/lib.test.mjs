@@ -3,6 +3,11 @@ import { test } from "node:test";
 
 import {
   clusterSpeakers,
+  displayTitle,
+  fileBase,
+  setMarkdownTitle,
+  slug,
+  speakersForTrack,
   formatTimestamp,
   isHallucination,
   mergeTracks,
@@ -119,4 +124,23 @@ test("speakerLabel + renameSpeaker", () => {
   assert.equal(speakerLabel(0, 1, null), null);
   const md = "**[00:00:01]** **Sprecher 1:** Hallo\n\n**[00:00:05]** **Sprecher 12:** Hi\n";
   assert.equal(renameSpeaker(md, "Sprecher 1", "Anna"), "**[00:00:01]** **Anna:** Hallo\n\n**[00:00:05]** **Sprecher 12:** Hi\n");
+});
+
+test("Titel, Slug und Dateinamen", () => {
+  const t = new Date(2026, 8, 30, 16, 57, 3).getTime();
+  assert.equal(displayTitle({ startedAt: t }), "Meeting 30.09.2026 16:57");
+  assert.equal(displayTitle({ startedAt: t, title: " Wochenmeeting " }), "Wochenmeeting");
+  assert.equal(slug("Jour fixe: Größe & Übergabe/Q4"), "Jour-fixe-Groesse-Uebergabe-Q4");
+  assert.equal(fileBase({ startedAt: t, title: "Vertrieb Süd" }), "2026-09-30_16-57-03_Vertrieb-Sued");
+  assert.equal(fileBase({ startedAt: t }), "2026-09-30_16-57-03");
+  assert.equal(setMarkdownTitle("# Alt\n\nText\n", "Neu"), "# Neu\n\nText\n");
+});
+
+test("speakersForTrack verteilt die Personenzahl", () => {
+  assert.equal(speakersForTrack(null, "mic", ["mic", "system"]), null);
+  assert.equal(speakersForTrack(4, "mic", ["mic"]), 4);
+  assert.equal(speakersForTrack(4, "system", ["mic", "system"]), null);
+  assert.equal(speakersForTrack(4, "mic", ["mic", "system"], 3), 1);
+  assert.equal(speakersForTrack(5, "mic", ["mic", "system"], 2), 3);
+  assert.equal(speakersForTrack(2, "mic", ["mic", "system"], 4), 1);
 });

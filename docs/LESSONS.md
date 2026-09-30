@@ -24,6 +24,12 @@ Format: **Datum – Thema**: Erkenntnis → Konsequenz. Neueste oben.
   GitHub Action, ausgelöst durch einen gepushten Tag `vX.Y.Z` (Claude kann Tags per git pushen).
 
 ## Learnings
+- **2026-09-30 – Browser-Speicher vs. Ordner**: IndexedDB liegt unverschlüsselt im Browser-Profil und ist für den Nutzer
+  unsichtbar. „Browserdaten löschen“ oder Profil-Bereinigung durch die IT löscht alles. → Zusätzlich ein Speicherordner per
+  File System Access API (Edge/Chrome). Nach einem Neustart muss der Zugriff ggf. per Klick neu erlaubt werden; der
+  Browser kennt nur den Ordnernamen, nicht den Pfad.
+- **2026-09-30 – Ladeanzeige**: Der Fortschritt des Workers summierte alle je geladenen Dateien (Whisper + WavLM). Das
+  Stimmen-Modell wirkte dadurch wie 321 MB. → Den Zähler pro Modell zurücksetzen.
 - **2026-09-30 – Sprechererkennung im Browser**: pyannote-segmentation in transformers.js kennt nur bis zu 3 Sprecher je
   10-s-Fenster und hat keine globale Zuordnung. → Stattdessen je Whisper-Satz einen Stimmabdruck (WavLMForXVector,
   512-dim) berechnen, dann agglomeratives Clustering über Schwerpunkte (Schwelle 0.86 laut Modellkarte). Kleine Cluster
