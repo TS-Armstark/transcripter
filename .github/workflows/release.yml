@@ -2,10 +2,16 @@ name: Release
 
 # Tag vX.Y.Z pushen → Windows-ZIP bauen (inkl. Modell), Selbsttest, GitHub-Release.
 # Manuell (Actions → Release → Run workflow): ohne Tag nur bauen (ZIP als Artefakt), mit Tag auch veröffentlichen.
+# PRs, die Build/Workflow/Abhängigkeiten ändern: nur bauen + Selbsttest, kein Release.
 on:
   push:
     tags:
       - "v*"
+  pull_request:
+    paths:
+      - "packaging/**"
+      - ".github/workflows/release.yml"
+      - "pyproject.toml"
   workflow_dispatch:
     inputs:
       tag:
