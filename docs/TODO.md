@@ -83,6 +83,8 @@ Später geklärt:
 - [x] Titel je Aufnahme (Liste, Dateiname, Markdown-Überschrift, nachträglich änderbar), Suche über Titel/Text/Datum
 - [x] Personenzahl frei eingebbar (verteilt auf Spuren: Remote automatisch, Mikrofon = Rest)
 - [x] Dialog „Neu transkribieren“: Modell, Sprechererkennung, Personenzahl vor dem Start wählen
+- [x] Speicherordner ist Pflicht: ohne Ordner keine Aufnahme und kein Upload
+- [x] Export nach PDF (jsPDF 4.2.1, mitgeliefert) und Word (.docx, selbst erzeugt) in den Speicherordner
 - [ ] Rückmeldung User: Trefferquote der Sprechererkennung in echten Meetings (ggf. Schwelle 0.86 anpassen)
 - [ ] Sprechererkennung auch in der Desktop-Version (gleicher Ansatz, z. B. sherpa-onnx oder WavLM via onnxruntime)
 - [x] GitHub Pages aktiviert, Repo öffentlich (30.09.2026) – https://ts-armstark.github.io/transcripter/

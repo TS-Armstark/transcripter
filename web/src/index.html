@@ -38,7 +38,7 @@
         </nav>
         <div class="sidebar-foot">
           <div class="privacy"><svg><use href="#i-lock" /></svg><span>Alles bleibt lokal auf diesem Rechner</span></div>
-          <label class="btn-upload">
+          <label class="btn-upload" id="upload-label">
             <svg><use href="#i-upload" /></svg>Audiodatei transkribieren
             <input type="file" id="file" accept="audio/*,video/*" hidden />
           </label>
@@ -75,7 +75,7 @@
             </label>
 
             <div class="record-row">
-              <button id="record" class="record-btn" aria-label="Aufnahme starten"><span class="dot"></span><span class="label">Aufnahme starten</span></button>
+              <button id="record" class="record-btn" aria-label="Aufnahme starten" disabled><span class="dot"></span><span class="label">Aufnahme starten</span></button>
               <div class="meter" id="meter" aria-hidden="true"></div>
             </div>
             <div id="status" class="status idle">Bereit</div>
@@ -146,7 +146,9 @@
                   </div>
                   <div class="row">
                     <button id="copy" class="btn">Kopieren</button>
-                    <button id="download-md" class="btn primary">Als .md speichern</button>
+                    <button id="export-pdf" class="btn primary">PDF</button>
+                    <button id="export-docx" class="btn primary">Word</button>
+                    <button id="download-md" class="btn">Markdown ↓</button>
                   </div>
                 </div>
                 <div class="row viewer-actions">
@@ -161,7 +163,7 @@
         </div>
 
         <footer class="muted small">
-          Spracherkennung: Whisper (OpenAI, MIT) über transformers.js (Apache-2.0) · Keine Daten verlassen diesen Rechner ·
+          Spracherkennung: Whisper (OpenAI, MIT) über transformers.js (Apache-2.0) · PDF: jsPDF (MIT) · Keine Daten verlassen diesen Rechner ·
           <a href="https://github.com/TS-Armstark/transcripter">Quellcode</a>
         </footer>
       </div>
@@ -192,6 +194,7 @@
       </form>
     </dialog>
 
+    <div id="toast" class="toast" hidden></div>
     <script type="module" src="app.js"></script>
   </body>
 </html>

@@ -43,6 +43,30 @@ const browser = await chromium.launch({
   args: ["--use-fake-device-for-media-stream", "--use-fake-ui-for-media-stream", "--autoplay-policy=no-user-gesture-required"],
 });
 const page = await browser.newPage();
+// Ordnerauswahl ist ein nativer Dialog → im Test durch das private Dateisystem des Browsers (OPFS) ersetzen
+await page.addInitScript(() => {
+  window.showDirectoryPicker = async () => {
+    const root = await navigator.storage.getDirectory();
+    return root.getDirectoryHandle("Speicherordner", { create: true });
+  };
+});
+async function opfsList() {
+  return page.evaluate(async () => {
+    const out = {};
+    const walk = async (dir, prefix) => {
+      for await (const [name, h] of dir.entries()) {
+        if (h.kind === "directory") await walk(h, `${prefix}${name}/`);
+        else {
+          const f = await h.getFile();
+          out[prefix + name] = { size: f.size, head: await f.slice(0, 5).text() };
+        }
+      }
+    };
+    const root = await navigator.storage.getDirectory();
+    await walk(await root.getDirectoryHandle("Speicherordner", { create: true }), "");
+    return out;
+  });
+}
 const errors = [];
 page.on("pageerror", (e) => errors.push(e.message));
 page.on("console", (m) => m.type() === "error" && !m.text().startsWith("Failed to load resource") && errors.push(m.text()));
@@ -67,6 +91,12 @@ try {
   await page.waitForFunction(() => window.crossOriginIsolated && window.__transcripter, null, { timeout: 20000 });
   check(true, "Seite geladen, cross-origin-isoliert (Multithreading möglich)");
 
+  // Ohne Speicherordner keine Aufnahme
+  check(await page.isDisabled("#record"), "Aufnahme ohne Speicherordner gesperrt");
+  await page.click("#storage-btn");
+  await page.waitForFunction(() => !document.getElementById("record").disabled);
+  check((await page.textContent("#storage-title")).includes("Speicherordner"), "Speicherordner gewählt, Aufnahme freigegeben");
+
   // Aufnahme nur mit Mikrofon (Bildschirmfreigabe lässt sich headless nicht auswählen)
   await page.fill("#title", "Testmeeting Vertrieb");
   await page.uncheck("#src-system", { force: true });
@@ -81,6 +111,11 @@ try {
   check(sessions.length === 1 && sessions[0].tracks.mic, "Aufnahme mit Mikrofon-Spur gespeichert");
   check(sessions[0].duration > 2, `Dauer plausibel (${sessions[0].duration.toFixed(1)} s)`);
   check(sessions[0].title === "Testmeeting Vertrieb", "Titel gespeichert");
+  const files = await opfsList();
+  check(
+    Object.keys(files).some((f) => /^Audio\/.+_Testmeeting-Vertrieb_mic\.webm$/.test(f) && files[f].size > 0),
+    `Aufnahme im Speicherordner abgelegt (${Object.keys(files).join(", ")})`,
+  );
   await page.click("nav a[data-view=transcripts]");
   await page.fill("#search", "vertrieb");
   check((await page.locator("#sessions .item").count()) === 1, "Suche findet Aufnahme über den Titel");
@@ -103,6 +138,15 @@ try {
     const hits = expect.filter((w) => text.toLowerCase().includes(w.toLowerCase()));
     check(text.includes("**[00:00:"), "Transkript mit Zeitstempel erzeugt");
     if (expect.length) check(hits.length > 0, `erwartete Wörter gefunden: ${hits.join(", ") || "keine"}`);
+    // Export: Markdown liegt automatisch im Ordner, PDF und Word per Knopf
+    await page.click("#export-pdf");
+    await page.click("#export-docx");
+    await page.waitForTimeout(1500);
+    const exported = await opfsList();
+    const has = (ext, head) => Object.entries(exported).some(([n, f]) => n.endsWith(ext) && !n.includes("/") && f.head.startsWith(head));
+    check(has(".md", "# "), "Transkript als .md im Speicherordner");
+    check(has(".pdf", "%PDF"), "PDF-Export im Speicherordner");
+    check(has(".docx", "PK"), "Word-Export im Speicherordner");
     if (turns.length) {
       // Sprecherfolge aus dem Markdown: gleiche Buchstaben im Muster = gleicher Sprecher
       const seq = [...text.matchAll(/^\*\*\[[\d:]+\]\*\* \*\*(.+?):\*\*/gm)].map((m) => m[1]);

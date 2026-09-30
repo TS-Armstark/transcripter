@@ -14,6 +14,7 @@ for (const f of ["transformers.min.js", "ort-wasm-simd-threaded.jsep.mjs", "ort-
   cpSync(join(tf, f), join(out, "vendor", f));
 }
 cpSync(join(here, "node_modules", "coi-serviceworker", "coi-serviceworker.min.js"), join(out, "coi-serviceworker.min.js"));
+cpSync(join(here, "node_modules", "jspdf", "dist", "jspdf.umd.min.js"), join(out, "vendor", "jspdf.umd.min.js"));
 cpSync(join(here, "..", "LICENSE"), join(out, "LICENSE.txt"));
 
 // Mitgelieferte Modelle (vom Workflow nach web/models geladen) – so klappt es auch, wenn Hugging Face gesperrt ist

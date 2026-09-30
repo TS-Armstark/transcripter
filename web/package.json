@@ -12,7 +12,8 @@
   },
   "dependencies": {
     "@huggingface/transformers": "3.8.1",
-    "coi-serviceworker": "0.1.7"
+    "coi-serviceworker": "0.1.7",
+    "jspdf": "4.2.1"
   },
   "devDependencies": {
     "playwright-core": "^1.50.0"

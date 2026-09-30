@@ -77,6 +77,11 @@ nav a.active svg { color: var(--cyan); }
 .storage.ok > svg { color: var(--green); }
 .storage.warn { background: #fff8e6; }
 .storage.warn > svg { color: #c98a00; }
+.storage.required { background: #fff1f1; box-shadow: 0 0 0 2px #ffc9c9 inset; }
+.storage.required > svg { color: var(--red); }
+.btn-upload.disabled { opacity: 0.45; cursor: not-allowed; }
+.record-btn:disabled { opacity: 0.45; cursor: not-allowed; transform: none; box-shadow: none; }
+.toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: var(--side); color: #fff; padding: 10px 16px; border-radius: 10px; font-size: 13.5px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); z-index: 10; max-width: 90vw; }
 .storage-text { display: flex; flex-direction: column; flex: 1; min-width: 0; }
 .storage-text strong { font-size: 14px; }
 

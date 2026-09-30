@@ -1,6 +1,7 @@
 // Transcripter im Browser: Aufnahme (Mikrofon + geteilter System-/Tab-Ton), Ablage im Browser (IndexedDB) und
 // optional als Dateien in einem gewählten Ordner, Transkription + Sprechererkennung im Web-Worker.
 // Es werden keine Audio- oder Textdaten an einen Server geschickt.
+import { toDocx, toPdf } from "./export.js";
 import { Folder, folderSupported } from "./folder.js";
 import {
   clusterSpeakers,
@@ -110,15 +111,14 @@ function renderStorage() {
   box.className = "storage";
   if (folder.state === "unsupported") {
     box.classList.add("warn");
-    $("storage-title").textContent = "Speicherort: nur im Browser";
-    $("storage-sub").textContent =
-      "Dieser Browser kann keine Ordner beschreiben. Transkripte über „Als .md speichern“ sichern – oder Edge/Chrome nutzen.";
+    $("storage-title").textContent = "Dieser Browser wird nicht unterstützt";
+    $("storage-sub").textContent = "Zum Aufnehmen wird ein lokaler Speicherordner benötigt – bitte Microsoft Edge oder Google Chrome verwenden.";
     btn.hidden = true;
   } else if (folder.state === "none") {
     box.classList.add("warn");
-    $("storage-title").textContent = "Noch kein Speicherordner gewählt";
+    $("storage-title").textContent = "Bitte zuerst einen Speicherordner wählen";
     $("storage-sub").textContent =
-      "Aufnahmen liegen bisher nur im Browser-Speicher. Wähle einen lokalen Ordner (nicht OneDrive), dann werden alle Dateien dort abgelegt.";
+      "Aufnahmen und Transkripte werden dort als Dateien abgelegt. Einen lokalen Ordner wählen, nicht OneDrive. Ohne Ordner ist keine Aufnahme möglich.";
     btn.hidden = false;
     btn.textContent = "Speicherordner wählen";
   } else if (folder.state === "prompt") {
@@ -136,6 +136,21 @@ function renderStorage() {
     btn.className = "btn";
   }
   if (folder.state !== "granted") btn.className = "btn primary";
+  box.classList.toggle("required", !folder.ready);
+  // Ohne Speicherordner keine Aufnahme und kein Upload
+  if (!rec) ui.record.disabled = !folder.ready;
+  $("upload-label").classList.toggle("disabled", !folder.ready);
+  ui.file.disabled = !folder.ready;
+  if (!rec && !folder.ready) {
+    setStatus(
+      folder.state === "unsupported"
+        ? "Aufnahme nur in Edge oder Chrome möglich"
+        : folder.state === "prompt"
+          ? "Bitte oben den Zugriff auf den Speicherordner erlauben"
+          : "Bitte zuerst oben einen Speicherordner wählen",
+      "warn",
+    );
+  } else if (!rec && ui.status.classList.contains("warn")) setStatus("Bereit");
 }
 $("storage-btn").onclick = async () => {
   try {
@@ -180,7 +195,6 @@ async function syncAll() {
     if (missing) await exportSession(s);
   }
 }
-renderStorage();
 
 async function saveSession(session) {
   await putSession(session);
@@ -273,6 +287,7 @@ function pickMime() {
 }
 
 async function startRecording() {
+  if (!folder.ready) return alert("Bitte zuerst oben einen Speicherordner wählen.");
   if (!ui.mic.checked && !ui.system.checked) return alert("Bitte mindestens eine Quelle auswählen.");
   const streams = {};
   const all = [];
@@ -360,6 +375,7 @@ async function stopRecording() {
   ui.mic.disabled = ui.system.disabled = false;
   ui.title.value = "";
   setRecordButton(false);
+  renderStorage();
   document.title = "Transcripter";
   setStatus(`Gespeichert: ${displayTitle(session)} (${formatTimestamp(duration)})`);
   await render();
@@ -546,7 +562,7 @@ function showTranscript(session) {
     .join(" + ");
   const file = session.files?.md ? ` · Datei: ${session.files.md}` : "";
   $("viewer-meta").textContent = `${when} · ${session.duration ? formatTimestamp(session.duration) : "–"} · ${tracks}${file}`;
-  $("copy").disabled = $("download-md").disabled = !session.transcript;
+  $("copy").disabled = $("download-md").disabled = $("export-pdf").disabled = $("export-docx").disabled = !session.transcript;
   $("retranscribe").textContent = session.transcript ? "Neu transkribieren …" : "Transkribieren …";
   $("retranscribe").disabled = inQueue(session.id);
   if (session.transcript) renderTranscript(session.transcript);
@@ -566,6 +582,47 @@ function markSelected() {
 $("copy").onclick = () => navigator.clipboard.writeText(viewing?.transcript || "");
 $("download-md").onclick = () =>
   viewing?.transcript && download(new Blob([viewing.transcript], { type: "text/markdown" }), `${fileBase(viewing)}.md`);
+function toast(text) {
+  const el = $("toast");
+  el.textContent = text;
+  el.hidden = false;
+  clearTimeout(toast.t);
+  toast.t = setTimeout(() => (el.hidden = true), 4500);
+}
+
+let jsPdfLoading = null;
+function loadJsPdf() {
+  jsPdfLoading ||= new Promise((resolve, reject) => {
+    const s = document.createElement("script");
+    s.src = new URL("./vendor/jspdf.umd.min.js", import.meta.url).href;
+    s.onload = () => resolve(window.jspdf.jsPDF);
+    s.onerror = () => reject(new Error("PDF-Bibliothek konnte nicht geladen werden"));
+    document.head.append(s);
+  });
+  return jsPdfLoading;
+}
+
+/** Export als PDF oder Word: in den Speicherordner (falls gewählt), sonst als Download. */
+async function exportAs(kind) {
+  if (!viewing?.transcript) return;
+  try {
+    const blob =
+      kind === "pdf"
+        ? new Blob([toPdf(viewing.transcript, await loadJsPdf())], { type: "application/pdf" })
+        : new Blob([toDocx(viewing.transcript)], {
+            type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+          });
+    const name = `${fileBase(viewing)}.${kind}`;
+    if (folder.ready && (await folder.write(name, blob))) toast(`Gespeichert im Speicherordner „${folder.name}“: ${name}`);
+    else download(blob, name);
+  } catch (err) {
+    console.error(err);
+    alert(`Export fehlgeschlagen: ${err.message}`);
+  }
+}
+$("export-pdf").onclick = () => exportAs("pdf");
+$("export-docx").onclick = () => exportAs("docx");
+
 $("download-audio").onclick = () => {
   if (!viewing) return;
   for (const [key, t] of Object.entries(viewing.tracks)) {
@@ -730,6 +787,10 @@ ui.search.oninput = () => render();
 ui.file.onchange = async () => {
   const file = ui.file.files[0];
   if (!file) return;
+  if (!folder.ready) {
+    ui.file.value = "";
+    return alert("Bitte zuerst oben einen Speicherordner wählen.");
+  }
   const session = {
     id: `f${Date.now()}`,
     title: ui.title.value.trim() || file.name.replace(/\.[^.]+$/, ""),
@@ -756,4 +817,5 @@ if (!window.crossOriginIsolated) console.info("Nicht cross-origin-isoliert – W
 if (!navigator.mediaDevices?.getDisplayMedia) ui.system.disabled = true;
 if (!folderSupported) console.info("File System Access API nicht verfügbar – Ablage nur im Browser.");
 await render();
+renderStorage();
 window.__transcripter = { enqueue, allSessions, queue }; // für automatische Tests
