@@ -162,14 +162,23 @@ try {
   // Anderer Tab mit älterer Datenbank-Version: Seite zeigt Hinweis statt stumm zu hängen
   {
     const ctx = await browser.newContext();
+    // Wie bei echten Nutzern: Seite war schon einmal offen (Service-Worker aktiv, kein Neuladen beim Start)
+    const warm = await ctx.newPage();
+    await warm.goto(url);
+    await warm.waitForFunction(() => window.crossOriginIsolated && window.__transcripter, null, { timeout: 20000 });
+    await warm.close();
     const old = await ctx.newPage();
     await old.goto(`${url}style.css`);
     await old.evaluate(
       () =>
-        new Promise((r) => {
-          const q = indexedDB.open("transcripter", 1);
-          q.onupgradeneeded = () => q.result.createObjectStore("sessions", { keyPath: "id" });
-          q.onsuccess = () => ((window.keep = q.result), r());
+        new Promise((r, reject) => {
+          const del = indexedDB.deleteDatabase("transcripter");
+          del.onerror = () => reject(del.error);
+          del.onsuccess = () => {
+            const q = indexedDB.open("transcripter", 1); // „alte Version“ hält die DB offen
+            q.onupgradeneeded = () => q.result.createObjectStore("sessions", { keyPath: "id" });
+            q.onsuccess = () => ((window.keep = q.result), r());
+          };
         }),
     );
     const p2 = await ctx.newPage();
