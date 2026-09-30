@@ -23,6 +23,7 @@
       <symbol id="i-chip" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2" /><path d="M9 2v4M15 2v4M9 18v4M15 18v4M2 9h4M2 15h4M18 9h4M18 15h4" /></symbol>
       <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></symbol>
       <symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 16V4M7 9l5-5 5 5M5 20h14" /></symbol>
+      <symbol id="i-users" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5" /><path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 4.5a3.5 3.5 0 0 1 0 7M18 14a6 6 0 0 1 3.5 6" /></symbol>
       <symbol id="i-screen" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2" /><path d="M8 20h8M12 16v4" /></symbol>
     </svg>
 
@@ -93,6 +94,19 @@
               <label class="toggle"><input type="checkbox" id="src-system" checked /><span class="switch"></span><svg><use href="#i-screen" /></svg>Teams/Zoom-Ton <small>(Remote)</small></label>
               <p class="hint indent">Beim Start „Bildschirm“ bzw. den Tab wählen und <b>„Systemaudio teilen“</b> anhaken.</p>
               <label class="toggle"><input type="checkbox" id="auto" checked /><span class="switch"></span>Nach dem Stoppen automatisch transkribieren</label>
+              <label class="toggle"><input type="checkbox" id="diarize" checked /><span class="switch"></span><svg><use href="#i-users" /></svg>Sprecher erkennen</label>
+              <label class="select indent-select">
+                <span>Anzahl</span>
+                <select id="speakers">
+                  <option value="">automatisch erkennen</option>
+                  <option value="2">2 Sprecher</option>
+                  <option value="3">3 Sprecher</option>
+                  <option value="4">4 Sprecher</option>
+                  <option value="5">5 Sprecher</option>
+                  <option value="6">6 Sprecher</option>
+                </select>
+              </label>
+              <p class="hint indent">Feste Anzahl gilt für Aufnahmen mit nur einer Spur (z. B. Meeting vor Ort). Namen lassen sich im Transkript per Klick ändern.</p>
               <label class="select">
                 <span>Modell</span>
                 <select id="model">

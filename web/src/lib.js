@@ -164,3 +164,113 @@ export function sessionFileName(startedAt) {
   const p = (n) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}_${p(d.getHours())}-${p(d.getMinutes())}-${p(d.getSeconds())}`;
 }
+
+// ---------- Sprechererkennung ----------
+
+export function normalize(v) {
+  let n = 0;
+  for (const x of v) n += x * x;
+  n = Math.sqrt(n) || 1;
+  return Float32Array.from(v, (x) => x / n);
+}
+
+export function cosine(a, b) {
+  let s = 0;
+  for (let i = 0; i < a.length; i++) s += a[i] * b[i];
+  return s;
+}
+
+/**
+ * Gruppiert Stimmabdrücke (L2-normalisiert) zu Sprechern: agglomeratives Clustering über Schwerpunkte.
+ * @param {Float32Array[]} embeddings je Segment
+ * @param {object} opts threshold: minimale Ähnlichkeit zum Zusammenlegen (automatische Anzahl),
+ *   numSpeakers: feste Anzahl (überschreibt threshold), durations: Segmentlängen in s (Gewichte),
+ *   minShare: Cluster mit weniger Sprechanteil werden dem ähnlichsten großen zugeschlagen
+ * @returns {number[]} Sprecher-Index je Segment, nummeriert nach erstem Auftreten (0, 1, …)
+ */
+export function clusterSpeakers(embeddings, opts = {}) {
+  const n = embeddings.length;
+  if (n === 0) return [];
+  const { threshold = 0.86, numSpeakers = null, durations = null, minShare = 0.04, minSeconds = 3 } = opts;
+  const w = durations ? durations.map((d) => Math.max(d, 0.1)) : new Array(n).fill(1);
+
+  // Cluster: gewichtete Summe der Vektoren; Ähnlichkeit = Kosinus der Schwerpunkte
+  const sums = embeddings.map((e, i) => Float32Array.from(e, (x) => x * w[i]));
+  const weight = w.slice();
+  const members = embeddings.map((_, i) => [i]);
+  const active = new Array(n).fill(true);
+  const centroid = (i) => normalize(sums[i]);
+  let cents = sums.map((_, i) => centroid(i));
+
+  const bestOf = (i) => {
+    let bj = -1;
+    let bs = -Infinity;
+    for (let j = 0; j < n; j++) {
+      if (j === i || !active[j]) continue;
+      const s = cosine(cents[i], cents[j]);
+      if (s > bs) {
+        bs = s;
+        bj = j;
+      }
+    }
+    return [bj, bs];
+  };
+  let best = cents.map((_, i) => bestOf(i));
+  let count = n;
+  const target = numSpeakers ? Math.max(1, numSpeakers) : 1;
+
+  const mergeInto = (i, j) => {
+    for (let k = 0; k < sums[i].length; k++) sums[i][k] += sums[j][k];
+    weight[i] += weight[j];
+    members[i].push(...members[j]);
+    active[j] = false;
+    cents[i] = centroid(i);
+    count--;
+    for (let k = 0; k < n; k++) if (active[k] && (k === i || best[k][0] === i || best[k][0] === j)) best[k] = bestOf(k);
+  };
+
+  while (count > target) {
+    let bi = -1;
+    for (let i = 0; i < n; i++) if (active[i] && best[i][0] >= 0 && (bi < 0 || best[i][1] > best[bi][1])) bi = i;
+    if (bi < 0) break;
+    const [bj, bs] = best[bi];
+    if (!numSpeakers && bs < threshold) break;
+    mergeInto(bi, bj);
+  }
+
+  // Winzige Cluster (Räuspern, Fehlzuordnung) dem ähnlichsten großen Cluster zuschlagen
+  if (!numSpeakers) {
+    const total = weight.reduce((a, x, i) => a + (active[i] ? x : 0), 0);
+    const small = (i) => weight[i] < Math.max(minSeconds, total * minShare);
+    const big = () => [...Array(n).keys()].filter((i) => active[i] && !small(i));
+    if (big().length) {
+      for (let i = 0; i < n; i++) {
+        if (!active[i] || !small(i)) continue;
+        const target = big().reduce((a, b) => (cosine(cents[i], cents[a]) >= cosine(cents[i], cents[b]) ? a : b));
+        mergeInto(target, i);
+      }
+    }
+  }
+
+  // Nummerierung nach erstem Auftreten
+  const clusterOf = new Array(n);
+  for (let i = 0; i < n; i++) if (active[i]) for (const m of members[i]) clusterOf[m] = i;
+  const order = new Map();
+  return clusterOf.map((c) => {
+    if (!order.has(c)) order.set(c, order.size);
+    return order.get(c);
+  });
+}
+
+/** Anzeigenamen: bei nur einem Sprecher der Spur-Name, sonst „Präfix 1“, „Präfix 2“, … */
+export function speakerLabel(index, count, trackLabel) {
+  if (count <= 1) return trackLabel || null;
+  const prefix = trackLabel === "Ich/Raum" ? "Raum" : trackLabel === "Remote" ? "Remote" : "Sprecher";
+  return `${prefix} ${index + 1}`;
+}
+
+/** Ersetzt einen Sprechernamen im Markdown-Transkript. */
+export function renameSpeaker(markdown, from, to) {
+  const esc = from.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return markdown.replace(new RegExp(`\\*\\*${esc}:\\*\\*`, "g"), `**${to.replace(/\*/g, "")}:**`);
+}

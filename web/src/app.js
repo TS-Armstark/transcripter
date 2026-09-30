@@ -1,11 +1,15 @@
 // Transcripter im Browser: Aufnahme (Mikrofon + geteilter System-/Tab-Ton), Ablage in IndexedDB,
 // Transkription im Web-Worker. Es werden keine Audio- oder Textdaten an einen Server geschickt.
 import {
+  clusterSpeakers,
   formatTimestamp,
   isHallucination,
   mergeTracks,
+  normalize,
+  renameSpeaker,
   sessionFileName,
   sessionTitle,
+  speakerLabel,
   speechRegions,
   toMarkdown,
 } from "./lib.js";
@@ -22,6 +26,8 @@ const ui = {
   system: $("src-system"),
   auto: $("auto"),
   model: $("model"),
+  diarize: $("diarize"),
+  speakers: $("speakers"),
   tbody: document.querySelector("#sessions tbody"),
   empty: $("empty"),
   file: $("file"),
@@ -136,6 +142,14 @@ worker.onmessage = ({ data }) => {
   if (data.type === "error") p.reject(new Error(data.message));
   else p.resolve(data.chunks);
 };
+function embedAudio(audio) {
+  const id = nextId++;
+  return new Promise((resolve, reject) => {
+    pending.set(id, { resolve, reject });
+    worker.postMessage({ type: "embed", id, audio }, [audio.buffer]);
+  });
+}
+
 function transcribeAudio(audio, offset, model) {
   const id = nextId++;
   return new Promise((resolve, reject) => {
@@ -280,6 +294,24 @@ async function runQueue() {
   resetRing("Fertig");
 }
 
+/** Audioausschnitt für den Stimmabdruck: mindestens 1,5 s (mit Umgebung), höchstens 10 s aus der Mitte. */
+function speakerWindow(samples, seg) {
+  let start = seg.start;
+  let end = Math.max(seg.end, seg.start + 0.1);
+  const len = end - start;
+  if (len < 1.5) {
+    start -= (1.5 - len) / 2;
+    end += (1.5 - len) / 2;
+  } else if (len > 10) {
+    const mid = (start + end) / 2;
+    start = mid - 5;
+    end = mid + 5;
+  }
+  const a = Math.max(0, Math.floor(start * SR));
+  const b = Math.min(samples.length, Math.ceil(end * SR));
+  return samples.slice(a, Math.max(b, a + SR / 2));
+}
+
 async function decodeMono16k(blob) {
   const ctx = new AudioContext({ sampleRate: SR });
   try {
@@ -337,7 +369,36 @@ async function transcribeSession(session) {
       for (const c of chunks) if (!isHallucination(c.text)) tracks[key].push({ ...c, speaker: label });
       done += r.end - r.start;
       ui.workLabel.textContent = `${name}: transkribiere ${label || "Audio"} …`;
-      ui.progress.value = totalSpeech ? (100 * done) / totalSpeech : 100;
+      ui.progress.value = totalSpeech ? ((ui.diarize.checked ? 85 : 100) * done) / totalSpeech : 100;
+    }
+  }
+
+  if (ui.diarize.checked) {
+    const fixed = Number(ui.speakers.value) || null;
+    // Feste Anzahl nur bei einer Spur eindeutig (bei Mikrofon + System verteilt sie sich auf beide)
+    const single = prepared.length === 1;
+    let doneSegs = 0;
+    const totalSegs = Object.values(tracks).reduce((a, t) => a + t.length, 0) || 1;
+    for (const { key, label, samples } of prepared) {
+      const segs = tracks[key];
+      if (segs.length < 2) continue;
+      ui.workLabel.textContent = `${name}: Sprecher werden erkannt …`;
+      onLoadProgress = (loaded, total) => {
+        ui.workLabel.textContent = `Stimmen-Modell wird geladen (einmalig) … ${Math.round(loaded / 1e6)} / ${Math.round(total / 1e6)} MB`;
+      };
+      const embeddings = [];
+      for (const seg of segs) {
+        embeddings.push(normalize(await embedAudio(speakerWindow(samples, seg))));
+        onLoadProgress = null;
+        doneSegs++;
+        ui.progress.value = 85 + (15 * doneSegs) / totalSegs;
+      }
+      const labels = clusterSpeakers(embeddings, {
+        numSpeakers: single ? fixed : null,
+        durations: segs.map((x) => Math.max(0.1, x.end - x.start)),
+      });
+      const count = new Set(labels).size;
+      segs.forEach((seg, i) => (seg.speaker = speakerLabel(labels[i], count, label)));
     }
   }
 
@@ -396,12 +457,14 @@ function chip(text, cls) {
 /** Markdown-Transkript als Gesprächsverlauf anzeigen (Zeitstempel, Sprecher, Text). */
 function renderTranscript(markdown) {
   ui.transcript.replaceChildren();
+  colorOf.clear();
   for (const line of markdown.split("\n")) {
     const m = line.match(/^\*\*\[(\d\d:\d\d:\d\d)\]\*\*(?: \*\*(.+?):\*\*)? (.*)$/);
     if (m) {
       const [, time, who, text] = m;
       const row = document.createElement("div");
-      row.className = `utt ${who === "Remote" ? "remote" : ""}`;
+      row.className = "utt";
+      if (who) row.dataset.color = String(speakerColor(who));
       const t = document.createElement("time");
       t.textContent = time;
       const bubble = document.createElement("div");
@@ -410,6 +473,8 @@ function renderTranscript(markdown) {
         const w = document.createElement("div");
         w.className = "who";
         w.textContent = who;
+        w.title = "Klicken zum Umbenennen";
+        w.onclick = () => renameInViewer(who);
         bubble.append(w);
       }
       bubble.append(document.createTextNode(text));
@@ -428,6 +493,20 @@ function renderTranscript(markdown) {
     empty.textContent = "Keine Sprache erkannt.";
     ui.transcript.append(empty);
   }
+}
+
+const colorOf = new Map();
+function speakerColor(name) {
+  if (!colorOf.has(name)) colorOf.set(name, colorOf.size % 6);
+  return colorOf.get(name);
+}
+
+async function renameInViewer(from) {
+  const to = prompt(`Neuer Name für „${from}“ (gilt für das ganze Transkript):`, from)?.trim();
+  if (!to || to === from || !viewing) return;
+  viewing.transcript = renameSpeaker(viewing.transcript, from, to);
+  await saveSession(viewing);
+  renderTranscript(viewing.transcript);
 }
 
 function updateStats(sessions) {

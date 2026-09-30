@@ -2,11 +2,15 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import {
+  clusterSpeakers,
   formatTimestamp,
   isHallucination,
   mergeTracks,
+  normalize,
   removeEcho,
+  renameSpeaker,
   sessionFileName,
+  speakerLabel,
   speechRegions,
   toMarkdown,
 } from "../src/lib.js";
@@ -79,4 +83,40 @@ test("mergeTracks + toMarkdown", () => {
 
 test("sessionFileName", () => {
   assert.equal(sessionFileName(new Date(2026, 8, 30, 9, 5, 7)), "2026-09-30_09-05-07");
+});
+
+function voice(base, noise, seed) {
+  // deterministisches „Rauschen“ um einen Grundvektor
+  let s = seed;
+  const rnd = () => ((s = (s * 16807) % 2147483647) / 2147483647 - 0.5) * 2;
+  return normalize(base.map((x) => x + noise * rnd()));
+}
+
+test("clusterSpeakers trennt zwei Stimmen automatisch", () => {
+  const a = Array.from({ length: 64 }, (_, i) => Math.sin(i));
+  const b = Array.from({ length: 64 }, (_, i) => Math.cos(i * 1.7));
+  const embs = [voice(a, 0.3, 1), voice(b, 0.3, 2), voice(a, 0.3, 3), voice(b, 0.3, 4), voice(a, 0.3, 5)];
+  const labels = clusterSpeakers(embs, { threshold: 0.7, durations: [5, 5, 5, 5, 5] });
+  assert.deepEqual(labels, [0, 1, 0, 1, 0]);
+});
+
+test("clusterSpeakers: feste Anzahl, eine Stimme, winzige Cluster", () => {
+  const a = Array.from({ length: 32 }, (_, i) => Math.sin(i));
+  const b = Array.from({ length: 32 }, (_, i) => Math.cos(i * 2.3));
+  const same = [voice(a, 0.1, 1), voice(a, 0.1, 2), voice(a, 0.1, 3)];
+  assert.deepEqual(clusterSpeakers(same, { threshold: 0.7 }), [0, 0, 0]);
+  assert.deepEqual(clusterSpeakers(same, { numSpeakers: 2 }).length, 3);
+  // 1 s Ausreißer bei 60 s Sprache → wird zugeschlagen
+  const embs = [voice(a, 0.1, 1), voice(b, 0.1, 9), voice(a, 0.1, 3)];
+  assert.deepEqual(clusterSpeakers(embs, { threshold: 0.7, durations: [30, 1, 30] }), [0, 0, 0]);
+  assert.deepEqual(clusterSpeakers([], {}), []);
+});
+
+test("speakerLabel + renameSpeaker", () => {
+  assert.equal(speakerLabel(0, 1, "Remote"), "Remote");
+  assert.equal(speakerLabel(1, 3, "Ich/Raum"), "Raum 2");
+  assert.equal(speakerLabel(0, 2, null), "Sprecher 1");
+  assert.equal(speakerLabel(0, 1, null), null);
+  const md = "**[00:00:01]** **Sprecher 1:** Hallo\n\n**[00:00:05]** **Sprecher 12:** Hi\n";
+  assert.equal(renameSpeaker(md, "Sprecher 1", "Anna"), "**[00:00:01]** **Anna:** Hallo\n\n**[00:00:05]** **Sprecher 12:** Hi\n");
 });

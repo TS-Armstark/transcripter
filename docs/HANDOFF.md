@@ -11,6 +11,9 @@
 - Browser-Version gebaut: `web/src` (app.js, worker.js, lib.js), Build `web/build.mjs`, Tests (Node + Chromium-E2E)
 - Workflow `pages.yml`: Whisper small mitliefern, E2E mit deutscher espeak-Sprachprobe, Deploy auf Pages
 
+## Neu
+- Sprechererkennung in der Browser-Version (Stimmabdrücke + Clustering, Umbenennen per Klick)
+
 ## Nächster Schritt
 1. ~~Pages aktivieren~~ erledigt – online: https://ts-armstark.github.io/transcripter/ (Repo ist öffentlich)
 2. User testet https://ts-armstark.github.io/transcripter/ auf dem Firmenrechner (Edge/Chrome)
