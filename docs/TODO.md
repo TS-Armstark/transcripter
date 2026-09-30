@@ -11,10 +11,12 @@ Getroffen am 2026-09-30 (Details & Begründung in `LESSONS.md`):
 - [x] Sprache: nur Deutsch
 - [x] Ausgabe: Markdown (`.md`)
 
-Noch offen:
-- [ ] Oberfläche: einfache Desktop-GUI (Start/Stop-Fenster) oder erst Kommandozeile?
-- [ ] Modell-Bereitstellung in der Firma: einmaliger Download beim ersten Start, im Installer mitliefern (~1,5 GB) oder von einem Netzlaufwerk?
-- [ ] Soll `main` als Standard-Branch angelegt werden?
+Später geklärt:
+- [x] Oberfläche: Desktop-Fenster mit PySide6 (Qt)
+- [x] Modell: `large-v3-turbo` (int8, ~0,8 GB) wird im Paket mitgeliefert, kein Download nötig
+- [x] Auslieferung: portable ZIP (kein Installer) – Basis-ZIP (CPU) + separates GPU-Paket (NVIDIA)
+- [x] `main` angelegt
+- [ ] Code-Signing-Zertifikat (gegen SmartScreen-/Virenscanner-Warnungen) – mit IT klären, später
 
 ## Meilenstein 0 – Grundstruktur
 - [x] CLAUDE.md, HANDOFF, TODO, LESSONS, RELEASE anlegen
@@ -38,7 +40,10 @@ Noch offen:
 
 ## Meilenstein 3 – Bedienung & Release (Windows)
 - [ ] GUI (Start/Stop, Liste der Aufnahmen, Transkript öffnen)
-- [ ] PyInstaller-Build in Release-Workflow integrieren
+- [ ] PyInstaller-Build (onedir) → portable ZIP im Release-Workflow
+- [ ] Modell + Lizenztexte (`LICENSES/`) ins Paket
+- [ ] Zweites Asset: GPU-Paket (CUDA-Bibliotheken), jede Datei < 2 GB (GitHub-Limit)
+- [ ] Speicherort lokal; Warnung, wenn der Ordner von OneDrive o. Ä. synchronisiert wird
 - [ ] Erstes Release `v0.1.0`
 
 ## Meilenstein 4 – macOS

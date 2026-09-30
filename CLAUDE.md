@@ -33,9 +33,10 @@ aufzeichnet und per **Speech-to-Text lokal** transkribiert – ohne externe Dien
 
 ## Tech-Stack (Entscheidungen siehe TODO.md / LESSONS.md)
 - Sprache: Python 3.11+
-- STT: `faster-whisper` (Whisper lokal, CPU/GPU) – Modell z. B. `large-v3` / `medium` für Deutsch
+- STT: `faster-whisper` (Whisper lokal, CPU/GPU) – Modell `large-v3-turbo` (int8), wird mitgeliefert
+- GUI: PySide6
 - Plattformen: Windows (zuerst), macOS; nur Deutsch; Ausgabe Markdown
 - Transkription nach dem Meeting (nicht live); GPU optional, CPU-Fallback
 - Audio: Mikrofon + System-Loopback (Windows: WASAPI-Loopback, macOS: ScreenCaptureKit), getrennte Spuren
 - Sprechertrennung: Stufe 1 über die Spuren, Stufe 2 lokale Diarization (sherpa-onnx)
-- Packaging: PyInstaller → Windows-`.exe` als Release-Asset
+- Packaging: PyInstaller (onedir) → portable ZIP als Release-Asset (Basis/CPU + GPU-Paket)
