@@ -3,16 +3,16 @@
 > Wird am Ende jeder Session überschrieben. Kurz halten.
 
 **Datum:** 2026-09-30
-**Stand:** Repo-Grundstruktur angelegt (CLAUDE.md, docs/, Release-Workflow). Noch kein Programmcode.
+**Stand:** Grundstruktur + Produktentscheidungen dokumentiert. Noch kein Programmcode.
 
 ## Was in der letzten Session passiert ist
-- Doku-Struktur erstellt: `CLAUDE.md`, `docs/HANDOFF.md`, `docs/TODO.md`, `docs/LESSONS.md`, `docs/RELEASE.md`, `README.md`
-- `.gitignore` schließt Aufnahmen, Transkripte und Modelle aus
-- GitHub Action `.github/workflows/release.yml`: erstellt bei Tag `v*` automatisch ein GitHub-Release
+- Doku-Struktur, `.gitignore` und Release-Workflow angelegt und gepusht
+- Produktentscheidungen des Users in `TODO.md` / `LESSONS.md` festgehalten
 
 ## Nächster Schritt
-Offene Entscheidungen in `docs/TODO.md` (Abschnitt „Entscheidungen“) mit dem User klären,
-danach Meilenstein 1 (Aufnahme-Prototyp) starten.
+Restliche offene Punkte klären (GUI vs. CLI, Modell-Bereitstellung, `main`-Branch),
+dann Meilenstein 0 (Python-Gerüst) und Meilenstein 1 (Aufnahme unter Windows).
 
 ## Blocker / Offene Fragen
-- Zielplattform bestätigen (Annahme: Windows)
+- Siehe `TODO.md` → „Noch offen“
+- Tag-Push/Release noch nicht getestet (erst beim ersten echten Release v0.1.0)

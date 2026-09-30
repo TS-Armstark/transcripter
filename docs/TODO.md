@@ -2,14 +2,19 @@
 
 Legende: `[ ]` offen · `[x]` erledigt · `[~]` in Arbeit
 
-## Entscheidungen (vor dem Coden klären)
-- [ ] Zielplattform: nur Windows? Auch macOS/Linux?
-- [ ] Oberfläche: einfache Desktop-GUI (Tray-Icon + Fenster) oder erst CLI?
-- [ ] Sprachen: nur Deutsch oder auch Englisch/automatisch erkennen?
-- [ ] Sprechertrennung (wer hat was gesagt) nötig? → mehr Rechenaufwand
-- [ ] Live-Transkription während des Meetings oder erst danach?
-- [ ] Hardware: GPU vorhanden (NVIDIA) oder nur CPU? → Modellgröße
-- [ ] Ausgabeformate: TXT, Markdown, DOCX, SRT?
+## Entscheidungen
+Getroffen am 2026-09-30 (Details & Begründung in `LESSONS.md`):
+- [x] Plattform: Windows **und** macOS (Windows zuerst, macOS danach)
+- [x] Sprechertrennung: gewünscht, wenn machbar
+- [x] Transkription **nach** dem Meeting (einfacher als live)
+- [x] Hardware: GPU optional – muss auch auf reinen CPU-Rechnern laufen (automatische Erkennung)
+- [x] Sprache: nur Deutsch
+- [x] Ausgabe: Markdown (`.md`)
+
+Noch offen:
+- [ ] Oberfläche: einfache Desktop-GUI (Start/Stop-Fenster) oder erst Kommandozeile?
+- [ ] Modell-Bereitstellung in der Firma: einmaliger Download beim ersten Start, im Installer mitliefern (~1,5 GB) oder von einem Netzlaufwerk?
+- [ ] Soll `main` als Standard-Branch angelegt werden?
 
 ## Meilenstein 0 – Grundstruktur
 - [x] CLAUDE.md, HANDOFF, TODO, LESSONS, RELEASE anlegen
@@ -26,10 +31,17 @@ Legende: `[ ]` offen · `[x]` erledigt · `[~]` in Arbeit
 ## Meilenstein 2 – Transkription
 - [ ] faster-whisper lokal einbinden
 - [ ] Modell-Download einmalig / Offline-Betrieb sicherstellen
-- [ ] Transkript mit Zeitstempeln exportieren
-- [ ] Optional: Sprechertrennung
+- [ ] Transkript als Markdown mit Zeitstempeln und Sprechern exportieren
+- [ ] Einfache Sprechertrennung über die Spuren: Mikrofon = „Ich/Raum“, System-Audio = „Remote“
+- [ ] Echte Sprechertrennung (lokal, z. B. sherpa-onnx) – Sprecher 1, 2, 3 …
+- [ ] Automatische Auswahl GPU/CPU und passende Modellgröße
 
-## Meilenstein 3 – Bedienung & Release
+## Meilenstein 3 – Bedienung & Release (Windows)
 - [ ] GUI (Start/Stop, Liste der Aufnahmen, Transkript öffnen)
 - [ ] PyInstaller-Build in Release-Workflow integrieren
 - [ ] Erstes Release `v0.1.0`
+
+## Meilenstein 4 – macOS
+- [ ] System-Audio auf macOS (ScreenCaptureKit, ab macOS 13, oder virtueller Treiber wie BlackHole)
+- [ ] macOS-Build im Release-Workflow
+- [ ] Signierung/Notarisierung klären (sonst Gatekeeper-Warnung)

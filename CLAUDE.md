@@ -31,9 +31,11 @@ aufzeichnet und per **Speech-to-Text lokal** transkribiert – ohne externe Dien
 - Am Ende jeder Session `docs/HANDOFF.md` überschreiben (Stand, offene Punkte, nächster Schritt).
 - Releases nach `docs/RELEASE.md` (Tag `vX.Y.Z` pushen → GitHub Action erstellt Release).
 
-## Tech-Stack (Vorschlag, siehe offene Entscheidungen in TODO.md)
+## Tech-Stack (Entscheidungen siehe TODO.md / LESSONS.md)
 - Sprache: Python 3.11+
 - STT: `faster-whisper` (Whisper lokal, CPU/GPU) – Modell z. B. `large-v3` / `medium` für Deutsch
-- Audio: Mikrofon + System-Loopback (Windows: WASAPI-Loopback), getrennte Spuren
-- Sprecher-Trennung (optional): lokale Diarization
+- Plattformen: Windows (zuerst), macOS; nur Deutsch; Ausgabe Markdown
+- Transkription nach dem Meeting (nicht live); GPU optional, CPU-Fallback
+- Audio: Mikrofon + System-Loopback (Windows: WASAPI-Loopback, macOS: ScreenCaptureKit), getrennte Spuren
+- Sprechertrennung: Stufe 1 über die Spuren, Stufe 2 lokale Diarization (sherpa-onnx)
 - Packaging: PyInstaller → Windows-`.exe` als Release-Asset
