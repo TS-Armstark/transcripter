@@ -1,34 +1,126 @@
 name: Release
 
+# Tag vX.Y.Z pushen → Windows-ZIP bauen (inkl. Modell), Selbsttest, GitHub-Release.
+# Manuell (Actions → Release → Run workflow): ohne Tag nur bauen (ZIP als Artefakt), mit Tag auch veröffentlichen.
+# PRs, die Build/Workflow/Abhängigkeiten ändern: nur bauen + Selbsttest, kein Release.
 on:
   push:
     tags:
       - "v*"
+  pull_request:
+    paths:
+      - "packaging/**"
+      - ".github/workflows/release.yml"
+      - "pyproject.toml"
   workflow_dispatch:
     inputs:
       tag:
-        description: "Tag für das Release (z. B. v0.1.0) – muss existieren"
-        required: true
+        description: "Bestehender Tag für das Release (leer = nur bauen)"
+        required: false
 
 permissions:
   contents: write
 
+env:
+  MODEL_CACHE_KEY: whisper-large-v3-turbo-ct2-int8-v1
+  RELEASE_TAG: ${{ github.event.inputs.tag || (github.ref_type == 'tag' && github.ref_name) || '' }}
+
 jobs:
-  release:
+  model:
+    name: Modell bereitstellen (int8)
     runs-on: ubuntu-latest
+    steps:
+      - uses: actions/cache@v4
+        id: cache
+        with:
+          path: model
+          key: ${{ env.MODEL_CACHE_KEY }}
+
+      - if: steps.cache.outputs.cache-hit != 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Whisper large-v3-turbo nach CTranslate2 int8 konvertieren
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install "ctranslate2==4.5.0" "transformers==4.46.3"
+          ct2-transformers-converter --model openai/whisper-large-v3-turbo --output_dir model \
+            --quantization int8 --copy_files tokenizer.json preprocessor_config.json
+
+      - run: ls -la model && du -sh model
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: model
+          path: model
+          retention-days: 3
+          compression-level: 0
+
+  build-windows:
+    name: Windows-ZIP bauen
+    needs: model
+    runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.inputs.tag || github.ref }}
+          ref: ${{ env.RELEASE_TAG || github.ref }}
 
-      # TODO: Build-Schritt ergänzen (PyInstaller auf windows-latest) und Artefakte unter dist/ ablegen
-
-      - name: GitHub-Release erstellen
-        uses: softprops/action-gh-release@v2
+      - uses: actions/setup-python@v5
         with:
-          tag_name: ${{ github.event.inputs.tag || github.ref_name }}
+          python-version: "3.11"
+
+      - run: pip install ".[app]" pyinstaller
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: model
+          path: model
+
+      - run: python packaging/build.py --model model
+
+      - name: Selbsttest der gebauten App (Modell laden, VAD, Dekodierung)
+        shell: pwsh
+        run: |
+          $p = Start-Process dist\Transcripter\Transcripter.exe -ArgumentList selftest -Wait -PassThru -NoNewWindow
+          Get-Content "$env:LOCALAPPDATA\Transcripter\transcripter.log" -ErrorAction SilentlyContinue
+          if ($p.ExitCode -ne 0) { throw "Selbsttest fehlgeschlagen (Exit $($p.ExitCode))" }
+
+      - name: ZIP packen
+        shell: pwsh
+        run: |
+          $name = if ($env:RELEASE_TAG) { $env:RELEASE_TAG } else { "dev-$($env:GITHUB_SHA.Substring(0,7))" }
+          Set-Location dist
+          7z a -tzip -mx=5 "Transcripter-$name-windows.zip" Transcripter | Out-Null
+          Get-Item *.zip | Format-Table Name, @{n='MB';e={[int]($_.Length/1MB)}}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-zip
+          path: dist/*.zip
+          retention-days: 7
+          compression-level: 0
+
+  release:
+    name: GitHub-Release
+    needs: build-windows
+    if: ${{ github.event.inputs.tag || github.ref_type == 'tag' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: windows-zip
+          path: dist
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.RELEASE_TAG }}
+          name: Transcripter ${{ env.RELEASE_TAG }}
+          body_path: packaging/RELEASE_BODY.md
           generate_release_notes: true
-          prerelease: ${{ contains(github.event.inputs.tag || github.ref_name, '-') }}
-          files: |
-            dist/*
-          fail_on_unmatched_files: false
+          prerelease: ${{ contains(env.RELEASE_TAG, '-') }}
+          files: dist/*.zip
+          fail_on_unmatched_files: true
