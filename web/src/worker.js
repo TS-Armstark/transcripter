@@ -26,6 +26,7 @@ let speaker = null;
 
 async function loadSpeaker() {
   if (speaker) return speaker;
+  progressFiles.clear(); // Fortschritt nur für dieses Modell zählen
   const [extractor, model] = await Promise.all([
     AutoFeatureExtractor.from_pretrained(SPEAKER_MODEL),
     WavLMForXVector.from_pretrained(SPEAKER_MODEL, { dtype: "q8", device: "wasm", progress_callback: reportProgress }),
@@ -52,6 +53,7 @@ async function load(key) {
   if (asr && loadedKey === key) return;
   const cfg = MODELS[key];
   if (!cfg) throw new Error(`Unbekanntes Modell: ${key}`);
+  progressFiles.clear();
   asr = await pipeline("automatic-speech-recognition", cfg.id, {
     device: cfg.device,
     dtype: cfg.dtype,

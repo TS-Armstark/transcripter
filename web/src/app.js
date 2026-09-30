@@ -1,27 +1,34 @@
-// Transcripter im Browser: Aufnahme (Mikrofon + geteilter System-/Tab-Ton), Ablage in IndexedDB,
-// Transkription im Web-Worker. Es werden keine Audio- oder Textdaten an einen Server geschickt.
+// Transcripter im Browser: Aufnahme (Mikrofon + geteilter System-/Tab-Ton), Ablage im Browser (IndexedDB) und
+// optional als Dateien in einem gewählten Ordner, Transkription + Sprechererkennung im Web-Worker.
+// Es werden keine Audio- oder Textdaten an einen Server geschickt.
+import { toDocx, toPdf } from "./export.js";
+import { Folder, folderSupported } from "./folder.js";
 import {
   clusterSpeakers,
+  displayTitle,
+  fileBase,
   formatTimestamp,
   isHallucination,
   mergeTracks,
   normalize,
   renameSpeaker,
-  sessionFileName,
-  sessionTitle,
+  setMarkdownTitle,
   speakerLabel,
+  speakersForTrack,
   speechRegions,
   toMarkdown,
 } from "./lib.js";
 
-const VERSION = "0.1.0-web";
+const VERSION = "0.2.0-web";
 const SR = 16000;
 const LABELS = { mic: "Ich/Raum", system: "Remote" };
+const TRACK_NAMES = { mic: "Mikrofon", system: "Teams/Zoom-Ton", file: "Audiodatei" };
 
 const $ = (id) => document.getElementById(id);
 const ui = {
   status: $("status"),
   record: $("record"),
+  title: $("title"),
   mic: $("src-mic"),
   system: $("src-system"),
   auto: $("auto"),
@@ -35,38 +42,25 @@ const ui = {
   file: $("file"),
   work: $("work"),
   workLabel: $("work-label"),
-  progress: null, // siehe unten: Fortschritt → Ring
-  viewer: $("viewer"),
-  viewerTitle: $("viewer-title"),
   transcript: $("transcript"),
 };
 $("version").textContent = `v${VERSION}`;
+const engine = navigator.gpu ? "WebGPU" : window.crossOriginIsolated ? "CPU (mehrkernig)" : "CPU";
+$("engine").textContent = `Lokal · ${engine}`;
 
-// Fortschritt wird als Ring angezeigt (ui.progress.value = 0..100)
-const ring = $("ring");
+// Schlanke Fortschrittsanzeige: ui.progress.value = 0..100
 ui.progress = {
   set value(v) {
     const p = Math.max(0, Math.min(100, Math.round(v || 0)));
-    ring.style.setProperty("--p", p);
-    $("ring-value").textContent = `${p}%`;
-    $("ring-sub").textContent = "in Arbeit";
+    $("work-bar").style.width = `${p}%`;
+    $("work-pct").textContent = `${p} %`;
   },
 };
-function resetRing(sub = "Bereit") {
-  ring.style.setProperty("--p", 0);
-  $("ring-value").textContent = "–";
-  $("ring-sub").textContent = sub;
-}
 
-// Rechenwerk anzeigen
-const engine = navigator.gpu ? "WebGPU" : window.crossOriginIsolated ? "CPU (mehrkernig)" : "CPU";
-$("stat-engine").textContent = engine;
-$("engine").textContent = `Lokal · ${engine}`;
-
-// ---------- Seiten: #aufnehmen (Dashboard) und #transkripte (alle Transkripte) ----------
+// ---------- Seiten ----------
 const PAGES = {
-  record: ["Meeting-Transkription", "Aufnehmen, lokal transkribieren, als Markdown speichern"],
-  transcripts: ["Transkripte", "Alle Aufnahmen und Transkripte in diesem Browser"],
+  record: ["Aufnehmen", "Meeting aufnehmen und lokal transkribieren"],
+  transcripts: ["Transkripte", "Alle Aufnahmen und Transkripte"],
 };
 function showView(name) {
   if (!PAGES[name]) name = "record";
@@ -79,9 +73,160 @@ const viewFromHash = () => (location.hash === "#transkripte" ? "transcripts" : "
 window.addEventListener("hashchange", () => showView(viewFromHash()));
 showView(viewFromHash());
 
-// Pegelanzeige
+// ---------- Ablage im Browser (IndexedDB) ----------
+const db = await new Promise((resolve, reject) => {
+  const req = indexedDB.open("transcripter", 2);
+  req.onupgradeneeded = () => {
+    const d = req.result;
+    if (!d.objectStoreNames.contains("sessions")) d.createObjectStore("sessions", { keyPath: "id" });
+    if (!d.objectStoreNames.contains("settings")) d.createObjectStore("settings");
+  };
+  req.onsuccess = () => resolve(req.result);
+  req.onerror = () => reject(req.error);
+});
+const dbCall = (req) =>
+  new Promise((resolve, reject) => {
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+const store = (name, mode) => db.transaction(name, mode).objectStore(name);
+const getSession = (id) => dbCall(store("sessions", "readonly").get(id));
+const putSession = (s) => dbCall(store("sessions", "readwrite").put(s));
+const deleteSession = (id) => dbCall(store("sessions", "readwrite").delete(id));
+const allSessions = async () =>
+  (await dbCall(store("sessions", "readonly").getAll())).sort((a, b) => b.startedAt - a.startedAt);
+const settings = {
+  get: (key) => dbCall(store("settings", "readonly").get(key)),
+  set: (key, value) => dbCall(store("settings", "readwrite").put(value, key)),
+};
+navigator.storage?.persist?.(); // Browser soll die Daten nicht automatisch aufräumen
+
+// ---------- Speicherordner (echte Dateien) ----------
+const folder = new Folder(settings);
+await folder.load();
+
+function renderStorage() {
+  const box = $("storage");
+  const btn = $("storage-btn");
+  box.className = "storage";
+  if (folder.state === "unsupported") {
+    box.classList.add("warn");
+    $("storage-title").textContent = "Dieser Browser wird nicht unterstützt";
+    $("storage-sub").textContent = "Zum Aufnehmen wird ein lokaler Speicherordner benötigt – bitte Microsoft Edge oder Google Chrome verwenden.";
+    btn.hidden = true;
+  } else if (folder.state === "none") {
+    box.classList.add("warn");
+    $("storage-title").textContent = "Bitte zuerst einen Speicherordner wählen";
+    $("storage-sub").textContent =
+      "Aufnahmen und Transkripte werden dort als Dateien abgelegt. Einen lokalen Ordner wählen, nicht OneDrive. Ohne Ordner ist keine Aufnahme möglich.";
+    btn.hidden = false;
+    btn.textContent = "Speicherordner wählen";
+  } else if (folder.state === "prompt") {
+    box.classList.add("warn");
+    $("storage-title").textContent = `Speicherordner „${folder.name}“`;
+    $("storage-sub").textContent = "Der Browser fragt nach dem Neustart erneut um Erlaubnis, in den Ordner zu schreiben.";
+    btn.hidden = false;
+    btn.textContent = "Zugriff erlauben";
+  } else {
+    box.classList.add("ok");
+    $("storage-title").textContent = `Speicherordner: ${folder.name}`;
+    $("storage-sub").textContent = "Transkripte (.md) direkt im Ordner, Aufnahmen im Unterordner „Audio“.";
+    btn.hidden = false;
+    btn.textContent = "Ordner ändern";
+    btn.className = "btn";
+  }
+  if (folder.state !== "granted") btn.className = "btn primary";
+  box.classList.toggle("required", !folder.ready);
+  // Ohne Speicherordner keine Aufnahme und kein Upload
+  if (!rec) ui.record.disabled = !folder.ready;
+  $("upload-label").classList.toggle("disabled", !folder.ready);
+  ui.file.disabled = !folder.ready;
+  if (!rec && !folder.ready) {
+    setStatus(
+      folder.state === "unsupported"
+        ? "Aufnahme nur in Edge oder Chrome möglich"
+        : folder.state === "prompt"
+          ? "Bitte oben den Zugriff auf den Speicherordner erlauben"
+          : "Bitte zuerst oben einen Speicherordner wählen",
+      "warn",
+    );
+  } else if (!rec && ui.status.classList.contains("warn")) setStatus("Bereit");
+}
+$("storage-btn").onclick = async () => {
+  try {
+    if (folder.state === "prompt") await folder.grant();
+    else await folder.pick();
+  } catch (err) {
+    if (err.name !== "AbortError") alert(`Ordner konnte nicht verwendet werden: ${err.message}`);
+  }
+  renderStorage();
+  if (folder.ready) await syncAll();
+};
+
+/** Schreibt Transkript und Aufnahme einer Sitzung in den Ordner (sofern gewählt); merkt sich die Dateinamen. */
+async function exportSession(session) {
+  if (!folder.ready) return;
+  session.files ||= {};
+  const base = fileBase(session);
+  try {
+    // Aufnahmen einmalig nach Audio/ (hochgeladene Dateien liegen ja schon beim Nutzer)
+    for (const [key, track] of Object.entries(session.tracks)) {
+      if (key === "file" || session.files[key]) continue;
+      const path = `Audio/${base}_${key}.webm`;
+      await folder.write(path, track.blob);
+      session.files[key] = path;
+    }
+    if (session.transcript) {
+      const path = `${base}.md`;
+      await folder.write(path, session.transcript);
+      if (session.files.md && session.files.md !== path) await folder.remove(session.files.md); // Titel geändert
+      session.files.md = path;
+    }
+    await putSession(session);
+  } catch (err) {
+    console.error("Export in Ordner fehlgeschlagen", err);
+  }
+}
+async function syncAll() {
+  for (const s of await allSessions()) {
+    const missing =
+      (s.transcript && !(s.files?.md && (await folder.exists(s.files.md)))) ||
+      Object.keys(s.tracks).some((k) => k !== "file" && !s.files?.[k]);
+    if (missing) await exportSession(s);
+  }
+}
+
+async function saveSession(session) {
+  await putSession(session);
+  await exportSession(session);
+}
+
+// ---------- Worker ----------
+const worker = new Worker(new URL("./worker.js", import.meta.url), { type: "module" });
+let nextId = 1;
+const pending = new Map();
+let onLoadProgress = null;
+worker.onmessage = ({ data }) => {
+  if (data.type === "load-progress") return onLoadProgress?.(data.loaded, data.total);
+  const p = pending.get(data.id);
+  if (!p) return;
+  pending.delete(data.id);
+  if (data.type === "error") p.reject(new Error(data.message));
+  else p.resolve(data.chunks);
+};
+function call(msg, transfer) {
+  const id = nextId++;
+  return new Promise((resolve, reject) => {
+    pending.set(id, { resolve, reject });
+    worker.postMessage({ ...msg, id }, transfer);
+  });
+}
+const transcribeAudio = (audio, offset, model) => call({ type: "transcribe", audio, offset, model }, [audio.buffer]);
+const embedAudio = (audio) => call({ type: "embed", audio }, [audio.buffer]);
+
+// ---------- Pegelanzeige & Aufnahme ----------
 const meter = $("meter");
-const BARS = 36;
+const BARS = 40;
 for (let i = 0; i < BARS; i++) meter.append(document.createElement("span"));
 let meterCtx = null;
 let meterRaf = 0;
@@ -121,63 +266,18 @@ function setRecordButton(on) {
   ui.record.querySelector(".label").textContent = on ? "Aufnahme beenden" : "Aufnahme starten";
   ui.record.setAttribute("aria-label", on ? "Aufnahme beenden" : "Aufnahme starten");
 }
-
-// ---------- Ablage (IndexedDB, nur in diesem Browser) ----------
-const db = await new Promise((resolve, reject) => {
-  const req = indexedDB.open("transcripter", 1);
-  req.onupgradeneeded = () => req.result.createObjectStore("sessions", { keyPath: "id" });
-  req.onsuccess = () => resolve(req.result);
-  req.onerror = () => reject(req.error);
-});
-const store = (mode) => db.transaction("sessions", mode).objectStore("sessions");
-const dbCall = (req) =>
-  new Promise((resolve, reject) => {
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
-  });
-const saveSession = (s) => dbCall(store("readwrite").put(s));
-const deleteSession = (id) => dbCall(store("readwrite").delete(id));
-const allSessions = async () => (await dbCall(store("readonly").getAll())).sort((a, b) => b.startedAt - a.startedAt);
-navigator.storage?.persist?.(); // Browser soll die Daten nicht automatisch aufräumen
-
-// ---------- Worker ----------
-const worker = new Worker(new URL("./worker.js", import.meta.url), { type: "module" });
-let nextId = 1;
-const pending = new Map();
-let onLoadProgress = null;
-worker.onmessage = ({ data }) => {
-  if (data.type === "load-progress") return onLoadProgress?.(data.loaded, data.total);
-  const p = pending.get(data.id);
-  if (!p) return;
-  pending.delete(data.id);
-  if (data.type === "error") p.reject(new Error(data.message));
-  else p.resolve(data.chunks);
-};
-function embedAudio(audio) {
-  const id = nextId++;
-  return new Promise((resolve, reject) => {
-    pending.set(id, { resolve, reject });
-    worker.postMessage({ type: "embed", id, audio }, [audio.buffer]);
-  });
-}
-
-function transcribeAudio(audio, offset, model) {
-  const id = nextId++;
-  return new Promise((resolve, reject) => {
-    pending.set(id, { resolve, reject });
-    worker.postMessage({ type: "transcribe", id, audio, offset, model }, [audio.buffer]);
-  });
-}
-
-// ---------- Aufnahme ----------
-let rec = null; // { startedAt, t0, recorders: {key: {mr, chunks}}, streams: [] }
-let timer = null;
-let busy = false;
-
 function setStatus(text, cls = "idle") {
   ui.status.textContent = text;
   ui.status.className = `status ${cls}`;
 }
+const speakersValue = (input) => {
+  const n = parseInt(input.value, 10);
+  return n >= 1 ? Math.min(n, 30) : null;
+};
+
+let rec = null;
+let timer = null;
+let busy = false;
 
 function pickMime() {
   for (const m of ["audio/webm;codecs=opus", "audio/webm", "audio/ogg;codecs=opus"]) {
@@ -187,6 +287,7 @@ function pickMime() {
 }
 
 async function startRecording() {
+  if (!folder.ready) return alert("Bitte zuerst oben einen Speicherordner wählen.");
   if (!ui.mic.checked && !ui.system.checked) return alert("Bitte mindestens eine Quelle auswählen.");
   const streams = {};
   const all = [];
@@ -226,7 +327,6 @@ async function startRecording() {
   Object.values(recorders).forEach((r) => r.mr.start(5000));
   rec = { startedAt: Date.now(), t0: performance.now(), recorders, streams: all, mimeType };
 
-  // Beendet der Nutzer die Bildschirmfreigabe über die Browser-Leiste, läuft das Mikrofon weiter.
   ui.mic.disabled = ui.system.disabled = true;
   setRecordButton(true);
   try {
@@ -261,23 +361,36 @@ async function stopRecording() {
   for (const [key, { chunks }] of Object.entries(current.recorders)) {
     tracks[key] = { blob: new Blob(chunks, { type: current.mimeType || "audio/webm" }), label: LABELS[key] };
   }
-  const session = { id: `s${current.startedAt}`, startedAt: current.startedAt, duration, tracks, transcript: null };
+  const session = {
+    id: `s${current.startedAt}`,
+    title: ui.title.value.trim(),
+    startedAt: current.startedAt,
+    duration,
+    tracks,
+    numSpeakers: speakersValue(ui.speakers),
+    transcript: null,
+  };
   await saveSession(session);
 
   ui.mic.disabled = ui.system.disabled = false;
+  ui.title.value = "";
   setRecordButton(false);
+  renderStorage();
   document.title = "Transcripter";
-  setStatus(`Gespeichert (${formatTimestamp(duration)})`);
+  setStatus(`Gespeichert: ${displayTitle(session)} (${formatTimestamp(duration)})`);
   await render();
-  if (ui.auto.checked) enqueue(session.id);
+  if (ui.auto.checked) {
+    enqueue(session.id, { model: ui.model.value, diarize: ui.diarize.checked, numSpeakers: session.numSpeakers });
+  }
 }
-
 ui.record.onclick = () => (rec ? stopRecording() : startRecording());
 
 // ---------- Transkription ----------
-const queue = [];
-function enqueue(id) {
-  if (!queue.includes(id)) queue.push(id);
+const queue = []; // [{ id, model, diarize, numSpeakers }]
+const inQueue = (id) => queue.some((j) => j.id === id);
+
+function enqueue(id, opts) {
+  if (!inQueue(id)) queue.push({ id, ...opts });
   render();
   runQueue();
 }
@@ -286,10 +399,10 @@ async function runQueue() {
   if (busy) return;
   busy = true;
   while (queue.length) {
-    const id = queue[0];
-    const session = await dbCall(store("readonly").get(id));
+    const job = queue[0];
+    const session = await getSession(job.id);
     try {
-      if (session) await transcribeSession(session);
+      if (session) await transcribeSession(session, job);
     } catch (err) {
       console.error(err);
       const net = /fetch|network|load/i.test(err.message)
@@ -302,7 +415,6 @@ async function runQueue() {
   }
   busy = false;
   ui.work.hidden = true;
-  resetRing("Fertig");
 }
 
 /** Audioausschnitt für den Stimmabdruck: mindestens 1,5 s (mit Umgebung), höchstens 10 s aus der Mitte. */
@@ -338,21 +450,24 @@ async function decodeMono16k(blob) {
   }
 }
 
-function chosenModel() {
-  if (ui.model.value === "turbo" && !navigator.gpu) {
-    alert("Dieser Browser/Rechner unterstützt kein WebGPU – es wird das schnelle Modell verwendet.");
-    ui.model.value = "small";
-  }
-  return ui.model.value;
+function loadingLabel(what) {
+  return (loaded, total) => {
+    ui.workLabel.textContent = `${what} wird geladen (einmalig) … ${Math.round(loaded / 1e6)} / ${Math.round(total / 1e6)} MB`;
+    ui.progress.value = (100 * loaded) / total;
+  };
 }
 
-async function transcribeSession(session) {
-  const model = chosenModel();
+async function transcribeSession(session, job) {
+  let model = job.model || "small";
+  if (model === "turbo" && !navigator.gpu) {
+    alert("Dieser Browser/Rechner unterstützt kein WebGPU – es wird das schnelle Modell verwendet.");
+    model = "small";
+  }
+  const name = displayTitle(session);
   ui.work.hidden = false;
   ui.progress.value = 0;
-  const name = sessionTitle(session.startedAt);
-
   ui.workLabel.textContent = `${name}: Audio wird vorbereitet …`;
+
   const prepared = [];
   let totalSpeech = 0;
   let duration = session.duration || 0;
@@ -364,11 +479,8 @@ async function transcribeSession(session) {
     prepared.push({ key, label: track.label, samples, regions });
   }
 
-  onLoadProgress = (loaded, total) => {
-    ui.workLabel.textContent = `Sprachmodell wird geladen (einmalig) … ${Math.round(loaded / 1e6)} / ${Math.round(total / 1e6)} MB`;
-    ui.progress.value = (100 * loaded) / total;
-  };
-
+  onLoadProgress = loadingLabel("Sprachmodell");
+  const share = job.diarize ? 85 : 100;
   const tracks = {};
   let done = 0;
   for (const { key, label, samples, regions } of prepared) {
@@ -379,24 +491,28 @@ async function transcribeSession(session) {
       onLoadProgress = null;
       for (const c of chunks) if (!isHallucination(c.text)) tracks[key].push({ ...c, speaker: label });
       done += r.end - r.start;
-      ui.workLabel.textContent = `${name}: transkribiere ${label || "Audio"} …`;
-      ui.progress.value = totalSpeech ? ((ui.diarize.checked ? 85 : 100) * done) / totalSpeech : 100;
+      ui.workLabel.textContent = `${name}: transkribiere ${TRACK_NAMES[key] || "Audio"} …`;
+      ui.progress.value = totalSpeech ? (share * done) / totalSpeech : share;
     }
   }
 
-  if (ui.diarize.checked) {
-    const fixed = Number(ui.speakers.value) || null;
-    // Feste Anzahl nur bei einer Spur eindeutig (bei Mikrofon + System verteilt sie sich auf beide)
-    const single = prepared.length === 1;
+  if (job.diarize) {
+    const keys = prepared.map((p) => p.key);
+    // System-Spur zuerst (automatisch), das Mikrofon bekommt den Rest der vorgegebenen Personenzahl
+    const order = [...prepared].sort((a, b) => (a.key === "system" ? -1 : b.key === "system" ? 1 : 0));
+    let systemFound = 0;
     let doneSegs = 0;
     const totalSegs = Object.values(tracks).reduce((a, t) => a + t.length, 0) || 1;
-    for (const { key, label, samples } of prepared) {
+    for (const { key, label, samples } of order) {
       const segs = tracks[key];
-      if (segs.length < 2) continue;
+      const fixed = speakersForTrack(job.numSpeakers, key, keys, systemFound);
+      if (segs.length < 2 || fixed === 1) {
+        if (key === "system") systemFound = segs.length ? 1 : 0;
+        doneSegs += segs.length;
+        continue;
+      }
       ui.workLabel.textContent = `${name}: Sprecher werden erkannt …`;
-      onLoadProgress = (loaded, total) => {
-        ui.workLabel.textContent = `Stimmen-Modell wird geladen (einmalig) … ${Math.round(loaded / 1e6)} / ${Math.round(total / 1e6)} MB`;
-      };
+      onLoadProgress = loadingLabel("Stimmen-Modell");
       const embeddings = [];
       for (const seg of segs) {
         embeddings.push(normalize(await embedAudio(speakerWindow(samples, seg))));
@@ -405,22 +521,25 @@ async function transcribeSession(session) {
         ui.progress.value = 85 + (15 * doneSegs) / totalSegs;
       }
       const labels = clusterSpeakers(embeddings, {
-        numSpeakers: single ? fixed : null,
+        numSpeakers: fixed,
         durations: segs.map((x) => Math.max(0.1, x.end - x.start)),
       });
       const count = new Set(labels).size;
+      if (key === "system") systemFound = count;
       segs.forEach((seg, i) => (seg.speaker = speakerLabel(labels[i], count, label)));
     }
   }
 
   session.transcript = toMarkdown(mergeTracks(tracks), name, session.startedAt);
   session.duration = duration;
+  session.model = model;
   await saveSession(session);
+  ui.progress.value = 100;
   ui.workLabel.textContent = `Fertig: ${name}`;
   showTranscript(session);
 }
 
-// ---------- Liste & Anzeige ----------
+// ---------- Transkripte: Liste & Ansicht ----------
 function download(blob, filename) {
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
@@ -436,20 +555,22 @@ function showTranscript(session) {
   else showView("transcripts");
   $("viewer-empty").hidden = true;
   $("viewer-body").hidden = false;
-  ui.viewerTitle.textContent = sessionTitle(session.startedAt);
+  $("viewer-title").textContent = displayTitle(session);
+  const when = new Date(session.startedAt).toLocaleString("de-DE", { dateStyle: "medium", timeStyle: "short" });
   const tracks = Object.keys(session.tracks)
-    .map((k) => ({ mic: "Mikrofon", system: "Teams/Zoom-Ton", file: "Audiodatei" })[k] || k)
+    .map((k) => TRACK_NAMES[k] || k)
     .join(" + ");
-  $("viewer-meta").textContent = `${session.duration ? formatTimestamp(session.duration) : "–"} · ${tracks}`;
-  $("copy").disabled = $("download-md").disabled = !session.transcript;
-  $("retranscribe").textContent = session.transcript ? "Neu transkribieren" : "Jetzt transkribieren";
-  $("retranscribe").disabled = queue.includes(session.id);
+  const file = session.files?.md ? ` · Datei: ${session.files.md}` : "";
+  $("viewer-meta").textContent = `${when} · ${session.duration ? formatTimestamp(session.duration) : "–"} · ${tracks}${file}`;
+  $("copy").disabled = $("download-md").disabled = $("export-pdf").disabled = $("export-docx").disabled = !session.transcript;
+  $("retranscribe").textContent = session.transcript ? "Neu transkribieren …" : "Transkribieren …";
+  $("retranscribe").disabled = inQueue(session.id);
   if (session.transcript) renderTranscript(session.transcript);
   else {
     ui.transcript.replaceChildren();
     const p = document.createElement("p");
     p.className = "empty";
-    p.textContent = queue.includes(session.id) ? "Wird gerade transkribiert …" : "Noch nicht transkribiert.";
+    p.textContent = inQueue(session.id) ? "Wird gerade transkribiert …" : "Noch nicht transkribiert.";
     ui.transcript.append(p);
   }
   markSelected();
@@ -457,27 +578,99 @@ function showTranscript(session) {
 function markSelected() {
   ui.list.querySelectorAll(".item").forEach((el) => el.classList.toggle("selected", el.dataset.id === viewing?.id));
 }
+
 $("copy").onclick = () => navigator.clipboard.writeText(viewing?.transcript || "");
 $("download-md").onclick = () =>
-  viewing?.transcript &&
-  download(new Blob([viewing.transcript], { type: "text/markdown" }), `${sessionFileName(viewing.startedAt)}.md`);
-$("retranscribe").onclick = () => viewing && enqueue(viewing.id);
+  viewing?.transcript && download(new Blob([viewing.transcript], { type: "text/markdown" }), `${fileBase(viewing)}.md`);
+function toast(text) {
+  const el = $("toast");
+  el.textContent = text;
+  el.hidden = false;
+  clearTimeout(toast.t);
+  toast.t = setTimeout(() => (el.hidden = true), 4500);
+}
+
+let jsPdfLoading = null;
+function loadJsPdf() {
+  jsPdfLoading ||= new Promise((resolve, reject) => {
+    const s = document.createElement("script");
+    s.src = new URL("./vendor/jspdf.umd.min.js", import.meta.url).href;
+    s.onload = () => resolve(window.jspdf.jsPDF);
+    s.onerror = () => reject(new Error("PDF-Bibliothek konnte nicht geladen werden"));
+    document.head.append(s);
+  });
+  return jsPdfLoading;
+}
+
+/** Export als PDF oder Word: in den Speicherordner (falls gewählt), sonst als Download. */
+async function exportAs(kind) {
+  if (!viewing?.transcript) return;
+  try {
+    const blob =
+      kind === "pdf"
+        ? new Blob([toPdf(viewing.transcript, await loadJsPdf())], { type: "application/pdf" })
+        : new Blob([toDocx(viewing.transcript)], {
+            type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+          });
+    const name = `${fileBase(viewing)}.${kind}`;
+    if (folder.ready && (await folder.write(name, blob))) toast(`Gespeichert im Speicherordner „${folder.name}“: ${name}`);
+    else download(blob, name);
+  } catch (err) {
+    console.error(err);
+    alert(`Export fehlgeschlagen: ${err.message}`);
+  }
+}
+$("export-pdf").onclick = () => exportAs("pdf");
+$("export-docx").onclick = () => exportAs("docx");
+
 $("download-audio").onclick = () => {
   if (!viewing) return;
   for (const [key, t] of Object.entries(viewing.tracks)) {
     const ext = (t.blob.type || "").includes("ogg") ? "ogg" : (t.blob.name?.split(".").pop() ?? "webm");
-    download(t.blob, `${sessionFileName(viewing.startedAt)}_${key}.${ext}`);
+    download(t.blob, `${fileBase(viewing)}_${key}.${ext}`);
   }
 };
 $("delete").onclick = async () => {
-  if (!viewing || queue.includes(viewing.id)) return;
-  if (!confirm("Aufnahme und Transkript endgültig löschen?")) return;
+  if (!viewing || inQueue(viewing.id)) return;
+  const inFolder = viewing.files?.md || Object.keys(viewing.files || {}).length ? " Die Dateien im Speicherordner bleiben erhalten." : "";
+  if (!confirm(`„${displayTitle(viewing)}“ aus der Liste löschen?${inFolder}`)) return;
   await deleteSession(viewing.id);
   viewing = null;
   $("viewer-body").hidden = true;
   $("viewer-empty").hidden = false;
   render();
 };
+$("edit-title").onclick = async () => {
+  if (!viewing) return;
+  const title = prompt("Titel der Aufnahme:", viewing.title || "")?.trim();
+  if (title === undefined || title === null || title === (viewing.title || "")) return;
+  viewing.title = title;
+  if (viewing.transcript) viewing.transcript = setMarkdownTitle(viewing.transcript, displayTitle(viewing));
+  await saveSession(viewing);
+  render();
+};
+
+// Dialog „Neu transkribieren“: Modell, Sprechererkennung und Personenzahl vor dem Start wählen
+const reDialog = $("re-dialog");
+$("retranscribe").onclick = () => {
+  if (!viewing) return;
+  $("re-name").textContent = displayTitle(viewing);
+  $("re-model").value = viewing.model || ui.model.value;
+  $("re-diarize").checked = true;
+  $("re-speakers").value = viewing.numSpeakers || "";
+  reDialog.showModal();
+};
+reDialog.addEventListener("close", async () => {
+  if (reDialog.returnValue !== "ok" || !viewing) return;
+  viewing.numSpeakers = speakersValue($("re-speakers"));
+  await putSession(viewing);
+  enqueue(viewing.id, {
+    model: $("re-model").value,
+    diarize: $("re-diarize").checked,
+    numSpeakers: viewing.numSpeakers,
+  });
+  showTranscript(viewing);
+});
 
 function chip(text, cls) {
   const c = document.createElement("span");
@@ -493,37 +686,36 @@ function preview(markdown) {
 }
 
 /** Markdown-Transkript als Gesprächsverlauf anzeigen (Zeitstempel, Sprecher, Text). */
+const colorOf = new Map();
+function speakerColor(name) {
+  if (!colorOf.has(name)) colorOf.set(name, colorOf.size % 6);
+  return colorOf.get(name);
+}
 function renderTranscript(markdown) {
   ui.transcript.replaceChildren();
   colorOf.clear();
   for (const line of markdown.split("\n")) {
     const m = line.match(/^\*\*\[(\d\d:\d\d:\d\d)\]\*\*(?: \*\*(.+?):\*\*)? (.*)$/);
-    if (m) {
-      const [, time, who, text] = m;
-      const row = document.createElement("div");
-      row.className = "utt";
-      if (who) row.dataset.color = String(speakerColor(who));
-      const t = document.createElement("time");
-      t.textContent = time;
-      const bubble = document.createElement("div");
-      bubble.className = "bubble";
-      if (who) {
-        const w = document.createElement("div");
-        w.className = "who";
-        w.textContent = who;
-        w.title = "Klicken zum Umbenennen";
-        w.onclick = () => renameInViewer(who);
-        bubble.append(w);
-      }
-      bubble.append(document.createTextNode(text));
-      row.append(t, bubble);
-      ui.transcript.append(row);
-    } else if (line.startsWith("Aufgenommen:")) {
-      const meta = document.createElement("div");
-      meta.className = "meta";
-      meta.textContent = line;
-      ui.transcript.append(meta);
+    if (!m) continue;
+    const [, time, who, text] = m;
+    const row = document.createElement("div");
+    row.className = "utt";
+    if (who) row.dataset.color = String(speakerColor(who));
+    const t = document.createElement("time");
+    t.textContent = time;
+    const bubble = document.createElement("div");
+    bubble.className = "bubble";
+    if (who) {
+      const w = document.createElement("div");
+      w.className = "who";
+      w.textContent = who;
+      w.title = "Klicken zum Umbenennen";
+      w.onclick = () => renameInViewer(who);
+      bubble.append(w);
     }
+    bubble.append(document.createTextNode(text));
+    row.append(t, bubble);
+    ui.transcript.append(row);
   }
   if (!ui.transcript.querySelector(".utt")) {
     const empty = document.createElement("p");
@@ -532,13 +724,6 @@ function renderTranscript(markdown) {
     ui.transcript.append(empty);
   }
 }
-
-const colorOf = new Map();
-function speakerColor(name) {
-  if (!colorOf.has(name)) colorOf.set(name, colorOf.size % 6);
-  return colorOf.get(name);
-}
-
 async function renameInViewer(from) {
   const to = prompt(`Neuer Name für „${from}“ (gilt für das ganze Transkript):`, from)?.trim();
   if (!to || to === from || !viewing) return;
@@ -547,27 +732,20 @@ async function renameInViewer(from) {
   renderTranscript(viewing.transcript);
 }
 
-function updateStats(sessions) {
-  const total = sessions.reduce((a, s) => a + (s.duration || 0), 0);
-  $("stat-count").textContent = sessions.length;
-  $("stat-done").textContent = sessions.filter((s) => s.transcript).length;
-  $("stat-time").textContent = `${Math.floor(total / 3600)}:${String(Math.floor((total % 3600) / 60)).padStart(2, "0")}`;
-}
-
 function item(s) {
   const el = document.createElement("button");
   el.className = "item";
   el.dataset.id = s.id;
-  const inQueue = queue.includes(s.id);
-  const state = inQueue ? chip("läuft", "busy") : s.transcript ? chip("✓ Fertig", "done") : chip("Offen", "open");
+  const state = inQueue(s.id) ? chip("läuft", "busy") : s.transcript ? chip("✓ Fertig", "done") : chip("Offen", "open");
   const head = document.createElement("div");
   head.className = "item-head";
   const title = document.createElement("strong");
-  title.textContent = new Date(s.startedAt).toLocaleString("de-DE", { dateStyle: "medium", timeStyle: "short" });
+  title.textContent = displayTitle(s);
   head.append(title, state);
   const meta = document.createElement("div");
   meta.className = "item-meta";
-  meta.textContent = `${s.duration ? formatTimestamp(s.duration) : "–"}${s.tracks.file ? " · Audiodatei" : ""}`;
+  const when = new Date(s.startedAt).toLocaleString("de-DE", { dateStyle: "medium", timeStyle: "short" });
+  meta.textContent = `${when} · ${s.duration ? formatTimestamp(s.duration) : "–"}${s.tracks.file ? " · Audiodatei" : ""}`;
   const text = document.createElement("div");
   text.className = "item-preview";
   text.textContent = preview(s.transcript) || (s.transcript ? "Keine Sprache erkannt" : "Noch nicht transkribiert");
@@ -576,20 +754,26 @@ function item(s) {
   return el;
 }
 
+function matches(s, q) {
+  if (!q) return true;
+  const hay = [
+    s.title || "",
+    s.transcript || "",
+    new Date(s.startedAt).toLocaleString("de-DE", { dateStyle: "medium", timeStyle: "short" }),
+    new Date(s.startedAt).toLocaleDateString("de-DE"),
+  ]
+    .join("\n")
+    .toLowerCase();
+  return q.split(/\s+/).every((word) => hay.includes(word));
+}
+
 async function render() {
   const sessions = await allSessions();
-  updateStats(sessions);
   $("nav-count").textContent = sessions.length;
   ui.empty.hidden = sessions.length > 0;
   ui.recent.replaceChildren(...sessions.slice(0, 3).map(item));
-
   const q = ui.search.value.trim().toLowerCase();
-  const hits = sessions.filter(
-    (s) =>
-      !q ||
-      (s.transcript || "").toLowerCase().includes(q) ||
-      new Date(s.startedAt).toLocaleString("de-DE").includes(q),
-  );
+  const hits = sessions.filter((s) => matches(s, q));
   ui.list.replaceChildren(...hits.map(item));
   $("no-hits").hidden = hits.length > 0 || !sessions.length;
   if (viewing) {
@@ -603,16 +787,23 @@ ui.search.oninput = () => render();
 ui.file.onchange = async () => {
   const file = ui.file.files[0];
   if (!file) return;
+  if (!folder.ready) {
+    ui.file.value = "";
+    return alert("Bitte zuerst oben einen Speicherordner wählen.");
+  }
   const session = {
     id: `f${Date.now()}`,
+    title: ui.title.value.trim() || file.name.replace(/\.[^.]+$/, ""),
     startedAt: file.lastModified || Date.now(),
     duration: 0,
     tracks: { file: { blob: file, label: null } },
+    numSpeakers: speakersValue(ui.speakers),
     transcript: null,
   };
   await saveSession(session);
   ui.file.value = "";
-  enqueue(session.id);
+  ui.title.value = "";
+  enqueue(session.id, { model: ui.model.value, diarize: ui.diarize.checked, numSpeakers: session.numSpeakers });
 };
 
 window.addEventListener("beforeunload", (e) => {
@@ -624,5 +815,7 @@ window.addEventListener("beforeunload", (e) => {
 
 if (!window.crossOriginIsolated) console.info("Nicht cross-origin-isoliert – WebAssembly läuft einfädig (langsamer).");
 if (!navigator.mediaDevices?.getDisplayMedia) ui.system.disabled = true;
+if (!folderSupported) console.info("File System Access API nicht verfügbar – Ablage nur im Browser.");
 await render();
+renderStorage();
 window.__transcripter = { enqueue, allSessions, queue }; // für automatische Tests

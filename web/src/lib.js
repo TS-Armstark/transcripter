@@ -274,3 +274,41 @@ export function renameSpeaker(markdown, from, to) {
   const esc = from.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   return markdown.replace(new RegExp(`\\*\\*${esc}:\\*\\*`, "g"), `**${to.replace(/\*/g, "")}:**`);
 }
+
+// ---------- Titel & Dateinamen ----------
+
+/** Anzeigename einer Aufnahme: eigener Titel oder „Meeting TT.MM.JJJJ hh:mm“. */
+export function displayTitle(session) {
+  return session.title?.trim() || sessionTitle(session.startedAt);
+}
+
+/** Für Dateinamen: Umlaute ausschreiben, Sonderzeichen entfernen, max. 60 Zeichen. */
+export function slug(text) {
+  return (text || "")
+    .replace(/ä/g, "ae").replace(/ö/g, "oe").replace(/ü/g, "ue").replace(/Ä/g, "Ae").replace(/Ö/g, "Oe").replace(/Ü/g, "Ue").replace(/ß/g, "ss")
+    .normalize("NFKD").replace(/[̀-ͯ]/g, "")
+    .replace(/[^A-Za-z0-9]+/g, "-").replace(/^-+|-+$/g, "")
+    .slice(0, 60).replace(/-+$/, "");
+}
+
+/** Basis-Dateiname: 2026-09-30_16-57-03_Wochenmeeting-Vertrieb */
+export function fileBase(session) {
+  const s = slug(session.title);
+  return s ? `${sessionFileName(session.startedAt)}_${s}` : sessionFileName(session.startedAt);
+}
+
+/** Ersetzt die Überschrift (erste „# “-Zeile) im Markdown. */
+export function setMarkdownTitle(markdown, title) {
+  return /^# .*$/m.test(markdown) ? markdown.replace(/^# .*$/m, `# ${title}`) : `# ${title}\n\n${markdown}`;
+}
+
+/**
+ * Verteilt eine vorgegebene Personenzahl auf die Spuren: Die System-Spur (Remote) wird automatisch erkannt,
+ * das Mikrofon bekommt den Rest (mindestens 1). Bei nur einer Spur gilt die Zahl direkt.
+ */
+export function speakersForTrack(total, key, keys, systemFound = 0) {
+  if (!total) return null;
+  if (keys.length === 1) return total;
+  if (key === "system") return null;
+  return Math.max(1, total - systemFound);
+}
