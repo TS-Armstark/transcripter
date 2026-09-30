@@ -1,0 +1,36 @@
+# --- Datenschutz: Aufnahmen, Transkripte, Modelle NIE committen ---
+recordings/
+transcripts/
+models/
+*.wav
+*.mp3
+*.m4a
+*.flac
+*.ogg
+*.opus
+*.webm
+*.srt
+*.vtt
+
+# --- Secrets ---
+.env
+*.env
+secrets*
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# --- OS / IDE ---
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
