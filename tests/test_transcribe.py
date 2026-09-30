@@ -15,9 +15,15 @@ from transcripter.transcribe import (
 
 
 def test_pick_device():
-    assert pick_device(1).device == "cuda"
-    cpu = pick_device(0)
+    assert pick_device(1, libs_ok=True, env={}).device == "cuda"
+    cpu = pick_device(0, libs_ok=True, env={})
     assert (cpu.device, cpu.compute_type) == ("cpu", "int8")
+
+
+def test_pick_device_needs_cuda_libs_and_respects_override():
+    assert pick_device(1, libs_ok=False, env={}).device == "cpu"  # Treiber da, cuBLAS fehlt
+    assert pick_device(1, libs_ok=True, env={"TRANSCRIPTER_DEVICE": "cpu"}).device == "cpu"
+    assert pick_device(1, libs_ok=False, env={"TRANSCRIPTER_DEVICE": "cuda"}).device == "cuda"
 
 
 def test_resolve_model_prefers_env_then_bundled(tmp_path):

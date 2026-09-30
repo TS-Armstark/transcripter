@@ -24,6 +24,18 @@ Format: **Datum – Thema**: Erkenntnis → Konsequenz. Neueste oben.
   GitHub Action, ausgelöst durch einen gepushten Tag `vX.Y.Z` (Claude kann Tags per git pushen).
 
 ## Learnings
+- **2026-09-30 – Fenster-Build (`--windowed`)**: Hier gibt es kein stdout/stderr. `print` tut dann nichts, aber
+  unbehandelte Fehler öffnen einen PyInstaller-Dialog, der z. B. die CI blockiert. → `selftest` fängt alles ab und
+  meldet über Exit-Code und Log (`%LOCALAPPDATA%\Transcripter\transcripter.log`). Kommandozeilen-Befehle wie
+  `record` (braucht `input()`) sind nur für die Entwicklung gedacht.
+- **2026-09-30 – Transkriptions-Thread**: Ein Daemon-`threading.Thread` statt `QThread`, damit das Fenster auch während
+  einer laufenden Transkription geschlossen werden kann. Ein laufender QThread würde beim Beenden abstürzen.
+  Signale aus dem Thread erreichen die GUI per Queued Connection.
+- **2026-09-30 – Qt im Cloud-Container**: PySide6 braucht `libEGL`/`libGL` (`apt-get install libegl1 libgl1
+  libxkbcommon0 libfontconfig1 libdbus-1-3`), danach geht `QT_QPA_PLATFORM=offscreen`. In der CI läuft der GUI-Test
+  nur auf Windows und macOS; unter Linux wird er übersprungen.
+- **2026-09-30 – `workflow_dispatch`**: Das geht nur mit Workflows, die auf dem Default-Branch liegen. Einen neuen
+  Release-Workflow vor dem Merge also nur per Tag testen.
 - **2026-09-30 – Modellgröße**: Das fertige faster-whisper-Modell `large-v3-turbo` liegt auf der Platte in fp16
   (~1,6 GB). Die ~0,8 GB gelten erst nach einer int8-Konvertierung (`ct2-transformers-converter
   --quantization int8`). → Das im Release-Build machen. Prüfen, ob die GPU mit dem int8-Modell gut läuft

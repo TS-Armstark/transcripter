@@ -3,7 +3,11 @@
 Zeichnet Meetings auf – vor Ort (Mikrofon) und online (System-Audio von Teams, Zoom & Co.) –
 und transkribiert sie **lokal auf dem eigenen Rechner**. Keine Cloud, keine externen Dienste.
 
-> Status: in Entwicklung. Siehe `docs/TODO.md`.
+> Status: Testphase. Siehe `docs/TODO.md`.
+
+## Nutzung
+Neueste Version unter **Releases** herunterladen (`Transcripter-…-windows.zip`), entpacken, `Transcripter.exe` starten.
+Details in `packaging/LIESMICH.txt` (liegt auch der ZIP bei).
 
 ## Entwicklung
 ```bash
@@ -13,9 +17,11 @@ pip install -e ".[app,dev]"    # zusätzlich Laufzeit (GUI, Whisper, Audio)
 ruff check . && ruff format --check . && pytest
 ```
 
-## Aufnehmen & transkribieren testen (Windows, vorläufig per Kommandozeile)
+## Kommandozeile (Entwicklung/Fehlersuche, Windows)
 ```powershell
 pip install -e ".[app]"
+transcripter                  # Programmfenster
+transcripter selftest         # Modell prüfen
 transcripter devices          # zeigt Mikrofone und System-Audio (Loopback)
 transcripter record           # nimmt Mikrofon + System-Audio auf, Enter beendet
 transcripter record --no-system   # nur Mikrofon (Meeting vor Ort)

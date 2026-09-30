@@ -17,6 +17,8 @@ jobs:
         with:
           python-version: "3.11"
       - run: pip install -e ".[dev]"
+      - if: runner.os != 'Linux'
+        run: pip install PySide6  # GUI-Smoke-Test (unter Linux fehlen die Systembibliotheken)
       - run: ruff check .
       - run: ruff format --check .
       - run: pytest -q

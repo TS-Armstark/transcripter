@@ -48,12 +48,18 @@ Später geklärt:
 - [x] Automatische Auswahl GPU (float16) / CPU (int8), Fallback auf CPU bei GPU-Fehler
 
 ## Meilenstein 3 – Bedienung & Release (Windows)
-- [ ] GUI (Start/Stop, Liste der Aufnahmen, Transkript öffnen)
-- [ ] PyInstaller-Build (onedir) → portable ZIP im Release-Workflow
-- [ ] Modell + Lizenztexte (`LICENSES/`) ins Paket – Modell beim Build nach int8 konvertieren (~0,8 GB statt 1,6 GB)
+- [x] GUI (`gui.py`): Start/Stop, rote Aufnahme-Anzeige + Titel, Quellen an/aus, Auto-Transkription, Liste,
+      Transkript/Ordner öffnen, Fortschritt, OneDrive-Warnung, Nachfrage beim Schließen während Aufnahme
+- [x] PyInstaller-Build (onedir, `packaging/build.py`) → portable ZIP im Release-Workflow + Selbsttest
+- [x] Modell + Lizenztexte (`LICENSES/`) ins Paket – Modell wird im Workflow nach int8 konvertiert (gecacht)
+- [ ] Geräteauswahl (Dropdown) statt nur Standardgeräte
+- [ ] Tray-Icon / kleines „Aufnahme läuft“-Overlay
+- [ ] App-Icon
+- [ ] Transkript umbenennen/Titel vergeben, Aufnahme löschen
 - [ ] Zweites Asset: GPU-Paket (CUDA-Bibliotheken), jede Datei < 2 GB (GitHub-Limit)
 - [~] Speicherort lokal; Warnung, wenn der Ordner von OneDrive o. Ä. synchronisiert wird (Erkennung in `paths.py` fertig, Warnung in GUI fehlt)
-- [ ] Erstes Release `v0.1.0`
+- [~] Erstes Test-Release `v0.1.0-beta.1` (nur CPU)
+- [ ] Rückmeldung User zum Test-Release
 
 ## Meilenstein 4 – macOS
 - [ ] System-Audio auf macOS (ScreenCaptureKit, ab macOS 13, oder virtueller Treiber wie BlackHole)

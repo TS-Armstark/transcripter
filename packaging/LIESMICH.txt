@@ -1,0 +1,26 @@
+TRANSCRIPTER – Testversion
+==========================
+
+Nimmt Meetings auf (Mikrofon + Ton von Teams/Zoom) und schreibt ein Transkript.
+Alles läuft lokal auf diesem Rechner – es werden keine Daten ins Internet gesendet.
+
+WICHTIG: Aufnahmen nur mit Einverständnis aller Teilnehmer!
+
+So geht's
+---------
+1. ZIP in einen lokalen Ordner entpacken (NICHT in OneDrive), z. B. C:\Tools\Transcripter
+2. Transcripter.exe doppelklicken
+   - Beim ersten Start warnt Windows evtl. ("Der Computer wurde durch Windows geschützt"):
+     "Weitere Informationen" -> "Trotzdem ausführen"
+3. "Aufnahme starten" klicken – oben erscheint rot "AUFNAHME LÄUFT".
+   Mikrofon = Sie/der Raum, System-Audio = Ton aus Teams/Zoom/Lautsprecher.
+4. "Aufnahme beenden" – danach wird automatisch transkribiert (Fortschritt unten im Fenster).
+   Ohne Grafikkarte dauert das ungefähr so lange wie die Aufnahme; das Fenster darf offen bleiben.
+5. Aufnahme in der Liste doppelklicken oder "Transkript öffnen" -> Transkript (.md).
+
+Ablage
+------
+Aufnahmen:   %LOCALAPPDATA%\Transcripter\recordings\
+Transkripte: %LOCALAPPDATA%\Transcripter\transcripts\
+Protokoll:   %LOCALAPPDATA%\Transcripter\transcripter.log  (bei Problemen bitte mitschicken –
+             enthält keine Gesprächsinhalte)

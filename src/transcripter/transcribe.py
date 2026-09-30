@@ -16,6 +16,7 @@ from transcripter.export import Segment, to_markdown
 
 MODEL_NAME = "large-v3-turbo"
 MODEL_ENV = "TRANSCRIPTER_MODEL"
+DEVICE_ENV = "TRANSCRIPTER_DEVICE"  # "cpu" oder "cuda" erzwingen
 LANGUAGE = "de"
 
 # (Spur-Schlüssel, Anteil 0..1) → z. B. für einen Fortschrittsbalken
@@ -32,16 +33,43 @@ class DeviceChoice:
     compute_type: str
 
 
-def pick_device(cuda_devices: int | None = None) -> DeviceChoice:
-    """GPU (NVIDIA/CUDA) wenn vorhanden, sonst CPU mit int8 – läuft auf jedem Rechner."""
+def cuda_libs_available() -> bool:
+    """Prüft, ob die CUDA-Bibliotheken (cuBLAS/cuDNN) ladbar sind.
+
+    ctranslate2 meldet eine NVIDIA-Karte schon, wenn nur der Treiber da ist. Fehlen cuBLAS/cuDNN (Basis-Paket
+    ohne GPU-Zusatz), scheitert die Transkription erst mitten im Lauf – daher vorher prüfen.
+    """
+    import ctypes
+
+    names = (
+        ("cublas64_12.dll", "cudnn64_9.dll")
+        if sys.platform == "win32"
+        else ("libcublas.so.12", "libcudnn.so.9")
+    )
+    try:
+        for name in names:
+            ctypes.CDLL(name)
+    except OSError:
+        return False
+    return True
+
+
+def pick_device(
+    cuda_devices: int | None = None, libs_ok: bool | None = None, env: dict[str, str] | None = None
+) -> DeviceChoice:
+    """GPU (NVIDIA/CUDA) wenn vorhanden und nutzbar, sonst CPU mit int8 – läuft auf jedem Rechner."""
+    env = os.environ if env is None else env
+    forced = env.get(DEVICE_ENV, "").lower()
+    if forced == "cpu":
+        return DeviceChoice("cpu", "int8")
     if cuda_devices is None:
         try:
             import ctranslate2
 
             cuda_devices = ctranslate2.get_cuda_device_count()
-        except Exception:  # CUDA-Bibliotheken fehlen (Basis-Paket) → CPU
+        except Exception:
             cuda_devices = 0
-    if cuda_devices > 0:
+    if cuda_devices > 0 and (forced == "cuda" or (libs_ok if libs_ok is not None else cuda_libs_available())):
         return DeviceChoice("cuda", "float16")
     return DeviceChoice("cpu", "int8")
 
