@@ -1,7 +1,8 @@
 name: Release
 
 # Tag vX.Y.Z pushen → Windows-ZIP bauen (inkl. Modell), Selbsttest, GitHub-Release.
-# Manuell (Actions → Release → Run workflow): ohne Tag nur bauen (ZIP als Artefakt), mit Tag auch veröffentlichen.
+# Manuell (Actions → Release → Run workflow): ohne Tag nur bauen (ZIP als Artefakt), mit Tag auch veröffentlichen –
+# der Tag wird dann auf dem gewählten Branch-Stand angelegt, falls er noch nicht existiert.
 # PRs, die Build/Workflow/Abhängigkeiten ändern: nur bauen + Selbsttest, kein Release.
 on:
   push:
@@ -15,7 +16,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Bestehender Tag für das Release (leer = nur bauen)"
+        description: "Tag für das Release, z. B. v0.1.0 (leer = nur bauen; wird angelegt, falls neu)"
         required: false
 
 permissions:
@@ -65,7 +66,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ env.RELEASE_TAG || github.ref }}
+          ref: ${{ github.ref_type == 'tag' && github.ref || github.sha }}
 
       - uses: actions/setup-python@v5
         with:
@@ -118,6 +119,7 @@ jobs:
       - uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.RELEASE_TAG }}
+          target_commitish: ${{ github.sha }}
           name: Transcripter ${{ env.RELEASE_TAG }}
           body_path: packaging/RELEASE_BODY.md
           generate_release_notes: true
