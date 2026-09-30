@@ -58,10 +58,20 @@ Später geklärt:
 - [ ] Transkript umbenennen/Titel vergeben, Aufnahme löschen
 - [ ] Zweites Asset: GPU-Paket (CUDA-Bibliotheken), jede Datei < 2 GB (GitHub-Limit)
 - [~] Speicherort lokal; Warnung, wenn der Ordner von OneDrive o. Ä. synchronisiert wird (Erkennung in `paths.py` fertig, Warnung in GUI fehlt)
-- [~] Erstes Test-Release `v0.1.0-beta.1` (nur CPU)
+- [x] Erstes Test-Release `v0.1.0-beta.1` (nur CPU) – veröffentlicht 30.09.2026
 - [ ] Rückmeldung User zum Test-Release
 
 ## Meilenstein 4 – macOS
 - [ ] System-Audio auf macOS (ScreenCaptureKit, ab macOS 13, oder virtueller Treiber wie BlackHole)
 - [ ] macOS-Build im Release-Workflow
 - [ ] Signierung/Notarisierung klären (sonst Gatekeeper-Warnung)
+
+## Browser-Version (`web/`) – für Rechner, auf denen die .exe per Richtlinie gesperrt ist
+- [x] Aufnahme Mikrofon + geteilter System-/Tab-Ton (getDisplayMedia), Ablage in IndexedDB
+- [x] Transkription im Web-Worker (transformers.js 3.8.1): Whisper small (q8, WASM, mitgeliefert) / large-v3-turbo (WebGPU, von HF)
+- [x] Energie-basierte Spracherkennung (statt VAD), Halluzinations-Filter, Echo-Filter, Markdown-Export
+- [x] Audiodatei hochladen und transkribieren
+- [x] GitHub-Pages-Workflow mit E2E-Test (Chromium, espeak-Sprachprobe)
+- [ ] **User: GitHub Pages aktivieren** (Settings → Pages → Source: GitHub Actions)
+- [ ] Test durch User auf Firmenrechner (Edge/Chrome): Bildschirmfreigabe mit Systemaudio erlaubt? Modell-Download ok?
+- [ ] Parallel: IT-Freigabe der .exe anstoßen

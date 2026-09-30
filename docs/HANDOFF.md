@@ -3,19 +3,19 @@
 > Wird am Ende jeder Session überschrieben. Kurz halten.
 
 **Datum:** 2026-09-30
-**Stand:** Aufnahme, Transkription, Programmfenster und Release-Build fertig. Erstes Test-Release `v0.1.0-beta.1`
-(Windows, nur CPU) in Arbeit. Auf echter Windows-Hardware noch nichts getestet.
+**Stand:**
+- Desktop: Test-Release v0.1.0-beta.1 (Windows, CPU). **Auf dem Firmenrechner des Users blockiert** (Endpoint-Schutz der Firma).
+- Neu: **Browser-Version** (`web/`) als Alternative – Aufnahme + lokale Transkription im Browser, GitHub Pages.
 
 ## Was in der letzten Session passiert ist
-- PR #1 (Gerüst, Aufnahme) gemergt; PR #2: Transkription, GPU-Check (cuBLAS/cuDNN), GUI, Release-Build
-- GUI (`gui.py`) mit Smoke-Test (offscreen, Fakes)
-- `release.yml`: Modell konvertieren (int8, Cache) → PyInstaller → Selbsttest → ZIP → Release
+- Browser-Version gebaut: `web/src` (app.js, worker.js, lib.js), Build `web/build.mjs`, Tests (Node + Chromium-E2E)
+- Workflow `pages.yml`: Whisper small mitliefern, E2E mit deutscher espeak-Sprachprobe, Deploy auf Pages
 
 ## Nächster Schritt
-1. Release-Workflow grün bekommen, Test-Release veröffentlichen
-2. User testet: Aufnahme (Mikrofon + Teams/Zoom), Transkript-Qualität, Echo, Dauer auf CPU
-3. Danach: GPU-Paket, Geräteauswahl, echte Sprechertrennung (sherpa-onnx), macOS
+1. User aktiviert GitHub Pages (Settings → Pages → Source: GitHub Actions), dann Deploy von `main`
+2. User testet https://ts-armstark.github.io/transcripter/ auf dem Firmenrechner (Edge/Chrome)
+3. Parallel: IT-Freigabe der .exe (Mail an IT – Empfänger vom User erfragen)
 
 ## Blocker / Offene Fragen
-- Hugging Face im Cloud-Container gesperrt → Modell nur in GitHub Actions / beim User
-- Unsignierte .exe → SmartScreen-Warnung (Code-Signing mit IT klären)
+- Unklar, ob Firmen-Browser Bildschirmfreigabe mit Systemaudio und den Modell-Download (Pages/Hugging Face) erlaubt
+- Modell „Genau“ (large-v3-turbo) kommt von Hugging Face und braucht WebGPU

@@ -24,6 +24,19 @@ Format: **Datum – Thema**: Erkenntnis → Konsequenz. Neueste oben.
   GitHub Action, ausgelöst durch einen gepushten Tag `vX.Y.Z` (Claude kann Tags per git pushen).
 
 ## Learnings
+- **2026-09-30 – Firmenrechner blockiert die .exe**: Zero-Trust-Anwendungskontrolle (Endpoint-Schutz) auf Firmenrechnern:
+  Unbekannte, unsignierte Programme werden blockiert, bis sie klassifiziert oder vom Admin freigegeben sind. Das nicht
+  umgehen. → Browser-Version (`web/`) als Alternative. Für die .exe den Weg über die IT gehen (Freigabe des ganzen
+  Ordners inkl. `_internal`-DLLs, besser Code-Signatur).
+- **2026-09-30 – Browser-Version, technische Punkte**:
+  - transformers.js lädt die ONNX-Runtime-WASM standardmäßig vom CDN (jsdelivr). → `env.backends.onnx.wasm.wasmPaths`
+    auf `./vendor/` setzen und die Dateien selbst ausliefern.
+  - Multithreading braucht `crossOriginIsolated`. GitHub Pages kann COOP/COEP nicht setzen → coi-serviceworker
+    (COEP credentialless).
+  - Whisper halluziniert auf Stille (z. B. „Untertitel im Auftrag des ZDF“). → Vorher Sprachabschnitte per Energie
+    finden (`speechRegions`) und bekannte Phrasen filtern.
+  - Pages-Deploy braucht einmalig „Settings → Pages → Source: GitHub Actions“. Mit GITHUB_TOKEN lässt sich das nicht
+    automatisch aktivieren.
 - **2026-09-30 – Tag-Push aus der Cloud-Session nicht möglich**: `git push origin <tag>` bricht ab mit „remote end
   hung up“; nur der Arbeitsbranch ist erlaubt. → Releases per `workflow_dispatch` mit Eingabe `tag`. Die
   Release-Action legt den Tag dann auf `github.sha` an.

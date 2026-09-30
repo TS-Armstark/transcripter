@@ -40,3 +40,6 @@ aufzeichnet und per **Speech-to-Text lokal** transkribiert – ohne externe Dien
 - Audio: Mikrofon + System-Loopback (Windows: WASAPI-Loopback, macOS: ScreenCaptureKit), getrennte Spuren
 - Sprechertrennung: Stufe 1 über die Spuren, Stufe 2 lokale Diarization (sherpa-onnx)
 - Packaging: PyInstaller (onedir) → portable ZIP als Release-Asset (Basis/CPU + GPU-Paket)
+- **Browser-Version** (`web/`, für Rechner, auf denen die .exe gesperrt ist): statische Seite auf GitHub Pages,
+  transformers.js im Web-Worker, Aufnahme per getUserMedia/getDisplayMedia, Ablage in IndexedDB.
+  Tests: `cd web && npm test` (Logik) und `npm run build && node test/e2e.mjs` (Chromium)
