@@ -21,7 +21,7 @@ import {
 } from "./lib.js";
 
 window.__appStarted = true; // für den Start-Wächter in index.html
-const VERSION = "0.3.0-web";
+const VERSION = "0.3.1-web";
 const SR = 16000;
 const LABELS = { mic: "Ich/Raum", system: "Remote" };
 const TRACK_NAMES = { mic: "Mikrofon", system: "Teams/Zoom-Ton", file: "Audiodatei" };

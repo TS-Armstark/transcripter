@@ -106,7 +106,7 @@ export function toDocx(markdown) {
     ...t.utts.map((u) =>
       para(
         run(`${u.time}  `, { size: 18, color: "808080" }) +
-          (u.who ? run(`${u.who}: `, { bold: true, color: "4B3FB5" }) : "") +
+          (u.who ? run(`${u.who}: `, { bold: true, color: "BC2222" }) : "") +
           run(u.text),
       ),
     ),
@@ -169,7 +169,7 @@ export function toPdf(markdown, JsPDF) {
     doc.text(u.time, left, y);
     if (u.who) {
       doc.setFont("helvetica", "bold");
-      doc.setTextColor(75, 63, 181);
+      doc.setTextColor(188, 34, 34);
       doc.text(u.who, left + 18, y);
     }
     y += 5;

@@ -114,3 +114,6 @@ Format: **Datum – Thema**: Erkenntnis → Konsequenz. Neueste oben.
   Unit-Tests brauchen nur `[dev]`, damit sie schnell bleiben.
 - **2026-09-30 – Repo ist öffentlich**: Umso strenger gilt: keine internen Infos, Aufnahmen oder Testaudios
   mit echten Stimmen committen.
+- **2026-10-01 – Akzentfarbe Rot**: Wenn die Hauptfarbe selbst rot ist, darf „Aufnahme läuft“ nicht einfach rot
+  werden. Deshalb ist der Aufnahme-Knopf im laufenden Zustand anthrazit mit pulsierendem roten Punkt, und das rote Statusband
+  bleibt als Hinweis. Schalter sind neutral (anthrazit), damit das Rot sparsam bleibt.
