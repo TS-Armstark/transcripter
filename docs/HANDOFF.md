@@ -2,7 +2,7 @@
 
 > Wird am Ende jeder Session überschrieben. Kurz halten.
 
-**Datum:** 2026-09-30
+**Datum:** 2026-10-01
 **Stand:**
 - Desktop: Test-Release v0.1.0-beta.1 (Windows, CPU). **Auf dem Firmenrechner des Users blockiert** (Endpoint-Schutz der Firma).
 - Neu: **Browser-Version** (`web/`) als Alternative – Aufnahme + lokale Transkription im Browser, GitHub Pages.
@@ -13,6 +13,9 @@
 
 ## Neu
 - Sprechererkennung in der Browser-Version (Stimmabdrücke + Clustering, Umbenennen per Klick)
+
+## Zuletzt (01.10.)
+- Browser-UI auf Hauptfarbe #bc2222 umgestellt (sparsam), Seitenleiste neutral anthrazit, v0.3.1-web
 
 ## Nächster Schritt
 1. ~~Pages aktivieren~~ erledigt – online: https://ts-armstark.github.io/transcripter/ (Repo ist öffentlich)
