@@ -7,6 +7,7 @@ import {
   clusterSpeakers,
   displayTitle,
   fileBase,
+  findCut,
   formatTimestamp,
   isHallucination,
   mergeTracks,
@@ -43,6 +44,7 @@ const ui = {
   mic: $("src-mic"),
   system: $("src-system"),
   auto: $("auto"),
+  live: $("live"),
   model: $("model"),
   diarize: $("diarize"),
   speakers: $("speakers"),
@@ -362,14 +364,27 @@ async function startRecording() {
 
   const mimeType = pickMime();
   const recorders = {};
-  for (const [key, stream] of Object.entries(streams)) {
-    const mr = new MediaRecorder(stream, { mimeType, audioBitsPerSecond: 64000 });
-    const chunks = [];
-    mr.ondataavailable = (e) => e.data.size && chunks.push(e.data);
-    recorders[key] = { mr, chunks };
+  const startedAt = Date.now();
+  let live = null;
+  if (ui.live.checked) {
+    // Live: Audio nur im Arbeitsspeicher verarbeiten, nichts aufzeichnen
+    try {
+      live = await startLive(streams, startedAt);
+    } catch (err) {
+      all.forEach((s) => s.getTracks().forEach((t) => t.stop()));
+      return alert(`Live-Transkript nicht möglich: ${err.message}`);
+    }
+  } else {
+    for (const [key, stream] of Object.entries(streams)) {
+      const mr = new MediaRecorder(stream, { mimeType, audioBitsPerSecond: 64000 });
+      const chunks = [];
+      mr.ondataavailable = (e) => e.data.size && chunks.push(e.data);
+      recorders[key] = { mr, chunks };
+    }
+    Object.values(recorders).forEach((r) => r.mr.start(5000));
   }
-  Object.values(recorders).forEach((r) => r.mr.start(5000));
-  rec = { startedAt: Date.now(), t0: performance.now(), recorders, streams: all, mimeType };
+  rec = { startedAt, t0: performance.now(), recorders, streams: all, mimeType, live };
+  ui.live.disabled = ui.auto.disabled = true;
 
   ui.mic.disabled = ui.system.disabled = true;
   setRecordButton(true);
@@ -393,6 +408,7 @@ async function stopRecording() {
   const current = rec;
   rec = null;
   const duration = (performance.now() - current.t0) / 1000;
+  if (current.live) return finishLive(current, duration);
   await Promise.all(
     Object.values(current.recorders).map(
       ({ mr }) => new Promise((resolve) => (mr.state === "inactive" ? resolve() : ((mr.onstop = resolve), mr.stop()))),
@@ -417,6 +433,8 @@ async function stopRecording() {
   await saveSession(session);
 
   ui.mic.disabled = ui.system.disabled = false;
+  ui.live.disabled = false;
+  ui.auto.disabled = ui.live.checked;
   ui.title.value = "";
   setRecordButton(false);
   renderStorage();
@@ -428,6 +446,184 @@ async function stopRecording() {
   }
 }
 ui.record.onclick = () => (rec ? stopRecording() : startRecording());
+ui.live.onchange = () => (ui.auto.disabled = ui.live.checked);
+
+// ---------- Live-Transkript (ohne Audio zu speichern) ----------
+const LIVE_MIN_S = 12; // Stückgröße: frühestens nach 12 s an einer leisen Stelle schneiden
+
+function concatParts(parts, len) {
+  const out = new Float32Array(len);
+  let pos = 0;
+  for (const p of parts) {
+    out.set(p, pos);
+    pos += p.length;
+  }
+  return out;
+}
+
+async function startLive(streams, startedAt) {
+  let model = ui.model.value;
+  if (model === "turbo" && !navigator.gpu) model = "small";
+  const ctx = new AudioContext({ sampleRate: SR });
+  await ctx.audioWorklet.addModule(new URL("./pcm-worklet.js", import.meta.url));
+  const mute = ctx.createGain();
+  mute.gain.value = 0;
+  mute.connect(ctx.destination);
+  const state = {
+    ctx,
+    model,
+    startedAt,
+    diarize: ui.diarize.checked,
+    numSpeakers: speakersValue(ui.speakers),
+    tracks: {},
+    jobs: [],
+    running: null,
+  };
+  for (const [key, stream] of Object.entries(streams)) {
+    const src = ctx.createMediaStreamSource(stream);
+    const node = new AudioWorkletNode(ctx, "pcm-tap");
+    const track = (state.tracks[key] = { label: LABELS[key], parts: [], len: 0, offset: 0, segs: [] });
+    node.port.onmessage = ({ data }) => {
+      track.parts.push(data);
+      track.len += data.length;
+      cutLive(state, key, false);
+    };
+    src.connect(node).connect(mute);
+  }
+  $("live-lines").replaceChildren();
+  $("live-lag").textContent = "Sprachmodell wird vorbereitet …";
+  $("live-panel").hidden = false;
+  onLoadProgress = (loaded, total) =>
+    ($("live-lag").textContent = `Modell wird geladen (einmalig) … ${Math.round(loaded / 1e6)} / ${Math.round(total / 1e6)} MB`);
+  worker.postMessage({ type: "load", model, speaker: state.diarize }); // vorladen, während schon aufgenommen wird
+  return state;
+}
+
+/** Puffer einer Spur an einer leisen Stelle abschneiden und zur Verarbeitung einreihen. */
+function cutLive(state, key, force) {
+  const t = state.tracks[key];
+  if (!force && t.len < LIVE_MIN_S * SR) return;
+  if (force && t.len < SR / 3) return;
+  const all = concatParts(t.parts, t.len);
+  const cut = force ? all.length : findCut(all, SR);
+  if (cut < 0) return;
+  state.jobs.push({ key, samples: all.slice(0, cut), offset: t.offset });
+  const rest = all.slice(cut);
+  t.parts = rest.length ? [rest] : [];
+  t.len = rest.length;
+  t.offset += cut / SR;
+  pumpLive(state);
+}
+
+function pumpLive(state) {
+  if (state.running) return;
+  state.running = processLive(state).finally(() => {
+    state.running = null;
+    if (state.jobs.length) pumpLive(state);
+  });
+}
+
+async function processLive(state) {
+  while (state.jobs.length) {
+    const job = state.jobs.shift();
+    const t = state.tracks[job.key];
+    showLag(state);
+    try {
+      await processLiveJob(state, job, t);
+    } catch (err) {
+      console.error(err);
+      state.error = err.message;
+      $("live-lag").textContent = `Fehler bei der Live-Transkription: ${err.message}`;
+    }
+    if (!state.error) showLag(state);
+  }
+}
+
+async function processLiveJob(state, job, t) {
+  {
+    for (const r of speechRegions(job.samples, SR)) {
+      const audio = job.samples.slice(Math.floor(r.start * SR), Math.ceil(r.end * SR));
+      const chunks = await transcribeAudio(audio, job.offset + r.start, state.model);
+      onLoadProgress = null;
+      for (const c of chunks) {
+        if (isHallucination(c.text)) continue;
+        const seg = { start: c.start, end: c.end, text: c.text, speaker: t.label, key: job.key };
+        if (state.diarize) {
+          const rel = { start: c.start - job.offset, end: c.end - job.offset };
+          seg.emb = normalize(await embedAudio(speakerWindow(job.samples, rel)));
+        }
+        t.segs.push(seg);
+        addLiveLine(seg);
+      }
+    }
+  }
+}
+
+function showLag(state) {
+  const queued = state.jobs.reduce((a, j) => a + j.samples.length / SR, 0);
+  $("live-lag").textContent =
+    queued > 20 ? `Rückstand ${formatTimestamp(queued)} – wird nach dem Ende fertig verarbeitet` : "läuft";
+}
+
+function addLiveLine(seg) {
+  const box = $("live-lines");
+  const atEnd = box.scrollTop + box.clientHeight >= box.scrollHeight - 30;
+  const line = document.createElement("div");
+  const t = document.createElement("span");
+  t.className = "t";
+  t.textContent = formatTimestamp(seg.start);
+  const w = document.createElement("span");
+  w.className = `w${seg.key === "system" ? " remote" : ""}`;
+  w.textContent = `${seg.speaker}:`;
+  line.append(t, w, document.createTextNode(seg.text.trim()));
+  box.append(line);
+  if (atEnd) box.scrollTop = box.scrollHeight;
+}
+
+let liveFinishing = false;
+async function finishLive(current, duration) {
+  const state = current.live;
+  liveFinishing = true;
+  stopMeter();
+  current.streams.forEach((s) => s.getTracks().forEach((t) => t.stop()));
+  await state.ctx.close();
+  for (const key of Object.keys(state.tracks)) cutLive(state, key, true);
+  setRecordButton(false);
+  ui.record.disabled = true;
+  setStatus("Live-Transkript wird fertiggestellt …");
+  while (state.running) await state.running;
+
+  const tracks = Object.fromEntries(Object.entries(state.tracks).map(([k, t]) => [k, t.segs]));
+  if (state.diarize) assignSpeakers(tracks, Object.fromEntries(Object.entries(state.tracks).map(([k, t]) => [k, t.label])), state.numSpeakers);
+  for (const segs of Object.values(tracks)) for (const seg of segs) delete seg.key;
+  const session = {
+    id: `l${state.startedAt}`,
+    title: ui.title.value.trim(),
+    startedAt: state.startedAt,
+    duration,
+    tracks: {}, // bewusst kein Audio
+    sources: Object.keys(state.tracks),
+    live: true,
+    numSpeakers: state.numSpeakers,
+    model: state.model,
+    transcript: null,
+  };
+  session.transcript = toMarkdown(mergeTracks(tracks), displayTitle(session), session.startedAt);
+  await saveSession(session);
+  liveFinishing = false;
+  if (state.error) alert(`Bei der Live-Transkription ist ein Fehler aufgetreten: ${state.error}\nDas bisher erkannte Transkript wurde gespeichert.`);
+
+  ui.record.disabled = false;
+  ui.mic.disabled = ui.system.disabled = ui.live.disabled = false;
+  ui.auto.disabled = ui.live.checked;
+  ui.title.value = "";
+  $("live-panel").hidden = true;
+  renderStorage();
+  document.title = "Transcripter";
+  setStatus(`Gespeichert: ${displayTitle(session)} (${formatTimestamp(duration)}, ohne Audio)`);
+  await render();
+  showTranscript(session);
+}
 
 // ---------- Transkription ----------
 const queue = []; // [{ id, model, diarize, numSpeakers }]
@@ -459,6 +655,32 @@ async function runQueue() {
   }
   busy = false;
   ui.work.hidden = true;
+}
+
+/**
+ * Ordnet Sätze anhand ihrer Stimmabdrücke (seg.emb) Sprechern zu.
+ * Die System-Spur (Remote) wird zuerst automatisch erkannt, das Mikrofon bekommt den Rest der Personenzahl.
+ */
+function assignSpeakers(tracks, labels, numSpeakers) {
+  const keys = Object.keys(tracks);
+  const order = [...keys].sort((a, b) => (a === "system" ? -1 : b === "system" ? 1 : 0));
+  let systemFound = 0;
+  for (const key of order) {
+    const segs = tracks[key].filter((x) => x.emb);
+    const fixed = speakersForTrack(numSpeakers, key, keys, systemFound);
+    if (segs.length < 2 || fixed === 1) {
+      if (key === "system") systemFound = tracks[key].length ? 1 : 0;
+    } else {
+      const ids = clusterSpeakers(
+        segs.map((x) => x.emb),
+        { numSpeakers: fixed, durations: segs.map((x) => Math.max(0.1, x.end - x.start)) },
+      );
+      const count = new Set(ids).size;
+      if (key === "system") systemFound = count;
+      segs.forEach((seg, i) => (seg.speaker = speakerLabel(ids[i], count, labels[key])));
+    }
+    for (const seg of tracks[key]) delete seg.emb;
+  }
 }
 
 /** Audioausschnitt für den Stimmabdruck: mindestens 1,5 s (mit Umgebung), höchstens 10 s aus der Mitte. */
@@ -541,37 +763,23 @@ async function transcribeSession(session, job) {
   }
 
   if (job.diarize) {
-    const keys = prepared.map((p) => p.key);
-    // System-Spur zuerst (automatisch), das Mikrofon bekommt den Rest der vorgegebenen Personenzahl
-    const order = [...prepared].sort((a, b) => (a.key === "system" ? -1 : b.key === "system" ? 1 : 0));
-    let systemFound = 0;
+    // Stimmabdruck je Satz (nicht nötig, wenn eine einzelne Spur fest 1 Person hat)
+    const single = prepared.length === 1;
     let doneSegs = 0;
     const totalSegs = Object.values(tracks).reduce((a, t) => a + t.length, 0) || 1;
-    for (const { key, label, samples } of order) {
+    for (const { key, samples } of prepared) {
       const segs = tracks[key];
-      const fixed = speakersForTrack(job.numSpeakers, key, keys, systemFound);
-      if (segs.length < 2 || fixed === 1) {
-        if (key === "system") systemFound = segs.length ? 1 : 0;
-        doneSegs += segs.length;
-        continue;
-      }
+      if (segs.length < 2 || (single && job.numSpeakers === 1)) continue;
       ui.workLabel.textContent = `${name}: Sprecher werden erkannt …`;
       onLoadProgress = loadingLabel("Stimmen-Modell");
-      const embeddings = [];
       for (const seg of segs) {
-        embeddings.push(normalize(await embedAudio(speakerWindow(samples, seg))));
+        seg.emb = normalize(await embedAudio(speakerWindow(samples, seg)));
         onLoadProgress = null;
         doneSegs++;
         ui.progress.value = 85 + (15 * doneSegs) / totalSegs;
       }
-      const labels = clusterSpeakers(embeddings, {
-        numSpeakers: fixed,
-        durations: segs.map((x) => Math.max(0.1, x.end - x.start)),
-      });
-      const count = new Set(labels).size;
-      if (key === "system") systemFound = count;
-      segs.forEach((seg, i) => (seg.speaker = speakerLabel(labels[i], count, label)));
     }
+    assignSpeakers(tracks, Object.fromEntries(prepared.map((p) => [p.key, p.label])), job.numSpeakers);
   }
 
   session.transcript = toMarkdown(mergeTracks(tracks), name, session.startedAt);
@@ -601,14 +809,17 @@ function showTranscript(session) {
   $("viewer-body").hidden = false;
   $("viewer-title").textContent = displayTitle(session);
   const when = new Date(session.startedAt).toLocaleString("de-DE", { dateStyle: "medium", timeStyle: "short" });
-  const tracks = Object.keys(session.tracks)
-    .map((k) => TRACK_NAMES[k] || k)
-    .join(" + ");
+  const tracks =
+    (session.sources || Object.keys(session.tracks)).map((k) => TRACK_NAMES[k] || k).join(" + ") +
+    (session.live ? " · Live, ohne Audio" : "");
   const file = session.files?.md ? ` · Datei: ${session.files.md}` : "";
   $("viewer-meta").textContent = `${when} · ${session.duration ? formatTimestamp(session.duration) : "–"} · ${tracks}${file}`;
   $("copy").disabled = $("download-md").disabled = $("export-pdf").disabled = $("export-docx").disabled = !session.transcript;
   $("retranscribe").textContent = session.transcript ? "Neu transkribieren …" : "Transkribieren …";
-  $("retranscribe").disabled = inQueue(session.id);
+  const hasAudio = Object.keys(session.tracks).length > 0;
+  $("retranscribe").disabled = inQueue(session.id) || !hasAudio;
+  $("download-audio").disabled = !hasAudio;
+  $("retranscribe").title = hasAudio ? "" : "Live-Transkript: kein Audio gespeichert";
   if (session.transcript) renderTranscript(session.transcript);
   else {
     ui.transcript.replaceChildren();
@@ -789,7 +1000,7 @@ function item(s) {
   const meta = document.createElement("div");
   meta.className = "item-meta";
   const when = new Date(s.startedAt).toLocaleString("de-DE", { dateStyle: "medium", timeStyle: "short" });
-  meta.textContent = `${when} · ${s.duration ? formatTimestamp(s.duration) : "–"}${s.tracks.file ? " · Audiodatei" : ""}`;
+  meta.textContent = `${when} · ${s.duration ? formatTimestamp(s.duration) : "–"}${s.tracks.file ? " · Audiodatei" : ""}${s.live ? " · Live" : ""}`;
   const text = document.createElement("div");
   text.className = "item-preview";
   text.textContent = preview(s.transcript) || (s.transcript ? "Keine Sprache erkannt" : "Noch nicht transkribiert");
@@ -858,7 +1069,7 @@ ui.file.onchange = async () => {
 };
 
 window.addEventListener("beforeunload", (e) => {
-  if (rec || busy) {
+  if (rec || busy || liveFinishing) {
     e.preventDefault();
     e.returnValue = "";
   }

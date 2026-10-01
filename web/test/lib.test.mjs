@@ -5,6 +5,7 @@ import {
   clusterSpeakers,
   displayTitle,
   fileBase,
+  findCut,
   setMarkdownTitle,
   slug,
   speakersForTrack,
@@ -143,4 +144,15 @@ test("speakersForTrack verteilt die Personenzahl", () => {
   assert.equal(speakersForTrack(4, "mic", ["mic", "system"], 3), 1);
   assert.equal(speakersForTrack(5, "mic", ["mic", "system"], 2), 3);
   assert.equal(speakersForTrack(2, "mic", ["mic", "system"], 4), 1);
+});
+
+test("findCut schneidet an der leisesten Stelle und wartet auf Mindestlänge", () => {
+  const sr = 1000;
+  const loud = (n) => Array.from({ length: n }, (_, i) => Math.sin(i));
+  assert.equal(findCut(Float32Array.from(loud(5000)), sr), -1);
+  // 13 s laut, darin bei 11,0–11,5 s Stille
+  const data = loud(13000);
+  for (let i = 11000; i < 11500; i++) data[i] = 0;
+  const cut = findCut(Float32Array.from(data), sr);
+  assert.ok(cut >= 11000 && cut <= 11500, `Schnitt bei ${cut}`);
 });

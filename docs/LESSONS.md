@@ -24,6 +24,13 @@ Format: **Datum – Thema**: Erkenntnis → Konsequenz. Neueste oben.
   GitHub Action, ausgelöst durch einen gepushten Tag `vX.Y.Z` (Claude kann Tags per git pushen).
 
 ## Learnings
+- **2026-10-01 – Live-Transkript**: Whisper arbeitet nicht als Stream. → Audio per AudioWorklet (16 kHz) sammeln, ab 12 s an
+  der leisesten Stelle der letzten 4 s schneiden (`findCut`) und stückweise transkribieren. Die Stimmabdrücke werden live
+  berechnet, das Clustering erfolgt am Ende; dafür ist kein Audio nötig. Der Worker lädt Modelle jetzt idempotent
+  (Promise merken), damit Vorladen und erste Anfrage sich nicht doppeln. Test: Chromium
+  `--use-file-for-fake-audio-capture=<wav>` spielt eine Datei als Mikrofon ab.
+- **2026-10-01 – Playwright**: `waitForFunction` wartet nicht auf async-Funktionen (ein Promise ist sofort „truthy“). →
+  Eigene Warteschleife mit `page.evaluate`.
 - **2026-09-30 – IndexedDB-Upgrade blockiert**: Nach dem Wechsel auf DB-Version 2 hing die Seite beim User stumm.
   Die Ursache war ein zweiter Tab mit der alten Version, der die DB offen hielt: `onupgradeneeded` wartet dann ewig,
   und das top-level `await` blockiert alle Knöpfe. → `onblocked` zeigt einen Hinweis, `db.onversionchange` schließt die

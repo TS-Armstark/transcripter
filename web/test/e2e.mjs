@@ -15,6 +15,8 @@ const sample = opt("--transcribe");
 const expect = (opt("--expect") || "").split(",").filter(Boolean);
 const speakers = opt("--speakers"); // z. B. "2" → feste Sprecheranzahl
 const turns = (opt("--expect-turns") || "").split(",").filter(Boolean); // z. B. A,B,A
+const liveAudio = opt("--live-audio"); // WAV, die als „Mikrofon“ abgespielt wird → Live-Modus testen
+const liveExpect = (opt("--live-expect") || "").split(",").filter(Boolean);
 
 const TYPES = {
   ".html": "text/html",
@@ -40,7 +42,12 @@ const url = `http://127.0.0.1:${server.address().port}/`;
 
 const browser = await chromium.launch({
   executablePath: process.env.CHROMIUM_PATH || undefined,
-  args: ["--use-fake-device-for-media-stream", "--use-fake-ui-for-media-stream", "--autoplay-policy=no-user-gesture-required"],
+  args: [
+    "--use-fake-device-for-media-stream",
+    "--use-fake-ui-for-media-stream",
+    "--autoplay-policy=no-user-gesture-required",
+    ...(liveAudio ? [`--use-file-for-fake-audio-capture=${resolve(liveAudio)}`] : []),
+  ],
 });
 const page = await browser.newPage();
 // Ordnerauswahl ist ein nativer Dialog → im Test durch das private Dateisystem des Browsers (OPFS) ersetzen
@@ -159,6 +166,40 @@ try {
       check(same(), `Sprecherwechsel erkannt: ${seq.join(" → ") || "keine Sprecher"} (erwartet ${turns.join(" → ")})`);
     }
   }
+  // Live-Transkript: Text entsteht während der Aufnahme, es wird kein Audio gespeichert
+  {
+    await page.click("nav a[data-view=record]");
+    await page.fill("#title", "Live Test");
+    await page.check("#live", { force: true });
+    check(await page.isDisabled("#auto"), "Live-Modus: automatische Transkription entfällt");
+    await page.click("#record");
+    await page.waitForSelector("#live-panel:not([hidden])");
+    await page.waitForTimeout(liveAudio ? 30000 : 4000);
+    await page.click("#record");
+    let live = null;
+    for (let i = 0; i < 600 && !live?.transcript; i++) {
+      live = (await page.evaluate(() => window.__transcripter.allSessions())).find((x) => x.live);
+      if (!live?.transcript) await page.waitForTimeout(1000);
+    }
+    check(Object.keys(live.tracks).length === 0 && live.sources?.includes("mic"), "Live-Sitzung ohne Audio gespeichert");
+    const liveFiles = await opfsList();
+    check(
+      Object.keys(liveFiles).some((f) => f.endsWith("_Live-Test.md")) && !Object.keys(liveFiles).some((f) => f.includes("Live-Test_")),
+      "Live: nur .md im Speicherordner, keine Audiodatei",
+    );
+    if (liveExpect.length) {
+      console.log(`--- Live-Transkript ---\n${live.transcript}------------------`);
+      const hits = liveExpect.filter((w) => live.transcript.toLowerCase().includes(w.toLowerCase()));
+      check(hits.length > 0, `Live-Transkript erkennt Sprache: ${hits.join(", ") || "nichts"}`);
+    }
+    // Schalter zurücksetzen – unabhängig davon, welche Seite gerade sichtbar ist
+    await page.evaluate(() => {
+      const c = document.getElementById("live");
+      c.checked = false;
+      c.dispatchEvent(new Event("change"));
+    });
+  }
+
   // Anderer Tab mit älterer Datenbank-Version: Seite zeigt Hinweis statt stumm zu hängen
   {
     const ctx = await browser.newContext();
