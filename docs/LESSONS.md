@@ -24,6 +24,11 @@ Format: **Datum – Thema**: Erkenntnis → Konsequenz. Neueste oben.
   GitHub Action, ausgelöst durch einen gepushten Tag `vX.Y.Z` (Claude kann Tags per git pushen).
 
 ## Learnings
+- **2026-10-01 – Browser-Cache mischt Versionen**: Nach dem Deploy lud der Browser des Users das neue `app.js` zusammen mit
+  einem alten `lib.js` aus dem Cache (GitHub Pages: max-age 600; der Service-Worker reicht Anfragen mit normalem Cache
+  durch). Der Import schlug fehl („does not provide an export named …“), und die Seite startete stumm. → `build.mjs` hängt
+  `?v=<git-sha>` an alle eigenen JS/CSS-Verweise. Dazu ein Start-Wächter (klassisches Inline-Skript in `index.html`), der
+  Ladefehler bzw. einen Nicht-Start nach 15 s sichtbar meldet.
 - **2026-10-01 – Live-Transkript**: Whisper arbeitet nicht als Stream. → Audio per AudioWorklet (16 kHz) sammeln, ab 12 s an
   der leisesten Stelle der letzten 4 s schneiden (`findCut`) und stückweise transkribieren. Die Stimmabdrücke werden live
   berechnet, das Clustering erfolgt am Ende; dafür ist kein Audio nötig. Der Worker lädt Modelle jetzt idempotent

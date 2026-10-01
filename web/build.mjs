@@ -1,5 +1,6 @@
 // Baut die statische Seite nach ../site: eigene Dateien + transformers.js/ONNX-Runtime + optional Modelle.
-import { cpSync, existsSync, mkdirSync, rmSync } from "node:fs";
+import { execSync } from "node:child_process";
+import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -20,4 +21,23 @@ cpSync(join(here, "..", "LICENSE"), join(out, "LICENSE.txt"));
 // Mitgelieferte Modelle (vom Workflow nach web/models geladen) – so klappt es auch, wenn Hugging Face gesperrt ist
 const models = join(here, "models");
 if (existsSync(models)) cpSync(models, join(out, "models"), { recursive: true });
-console.log(`Fertig: ${out}`);
+// Versionsstempel an allen eigenen Programmdateien: Der Browser darf nie alte und neue Teile mischen
+// (sonst z. B. „module does not provide an export named …“ und die Seite startet stumm nicht).
+let id;
+try {
+  id = execSync("git rev-parse --short HEAD", { cwd: here }).toString().trim();
+} catch {
+  id = Date.now().toString(36);
+}
+const stamp = (text) =>
+  text
+    .replace(/(["'])\.\/((?:vendor\/)?[\w.-]+\.(?:js|mjs|css))\1/g, `$1./$2?v=${id}$1`)
+    .replace(/(src|href)="((?!https?:|data:|#)[\w-]+\.(?:js|css))"/g, (m, attr, file) =>
+      file === "coi-serviceworker.min.js" ? m : `${attr}="${file}?v=${id}"`,
+    );
+for (const name of readdirSync(out)) {
+  if (!/\.(js|html)$/.test(name) || name === "coi-serviceworker.min.js") continue;
+  const file = join(out, name);
+  writeFileSync(file, stamp(readFileSync(file, "utf8")));
+}
+console.log(`Fertig: ${out} (Version ${id})`);
