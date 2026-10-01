@@ -192,8 +192,12 @@ try {
       const hits = liveExpect.filter((w) => live.transcript.toLowerCase().includes(w.toLowerCase()));
       check(hits.length > 0, `Live-Transkript erkennt Sprache: ${hits.join(", ") || "nichts"}`);
     }
-    await page.click("nav a[data-view=record]");
-    await page.uncheck("#live", { force: true });
+    // Schalter zurücksetzen – unabhängig davon, welche Seite gerade sichtbar ist
+    await page.evaluate(() => {
+      const c = document.getElementById("live");
+      c.checked = false;
+      c.dispatchEvent(new Event("change"));
+    });
   }
 
   // Anderer Tab mit älterer Datenbank-Version: Seite zeigt Hinweis statt stumm zu hängen
