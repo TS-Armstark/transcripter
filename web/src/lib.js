@@ -312,3 +312,28 @@ export function speakersForTrack(total, key, keys, systemFound = 0) {
   if (key === "system") return null;
   return Math.max(1, total - systemFound);
 }
+
+// ---------- Live-Transkript ----------
+
+/**
+ * Wo soll ein laufender Audiopuffer abgeschnitten werden? An der leisesten Stelle (0,3 s Fenster) in den letzten
+ * `searchS` Sekunden – so werden Wörter möglichst nicht zerteilt.
+ * @returns {number} Schnittposition (Samples) oder -1, solange der Puffer kürzer als minLenS ist
+ */
+export function findCut(samples, sampleRate, { minLenS = 12, searchS = 4, windowS = 0.3 } = {}) {
+  if (samples.length < minLenS * sampleRate) return -1;
+  const win = Math.round(windowS * sampleRate);
+  const step = Math.round(win / 3);
+  const from = Math.max(0, samples.length - Math.round(searchS * sampleRate));
+  let best = samples.length;
+  let bestE = Infinity;
+  for (let s = from; s + win <= samples.length; s += step) {
+    let e = 0;
+    for (let i = s; i < s + win; i++) e += samples[i] * samples[i];
+    if (e < bestE) {
+      bestE = e;
+      best = s + Math.floor(win / 2);
+    }
+  }
+  return best;
+}

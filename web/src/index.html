@@ -81,6 +81,10 @@
               <div class="meter" id="meter" aria-hidden="true"></div>
             </div>
             <div id="status" class="status idle">Bereit</div>
+            <div id="live-panel" class="live-panel" hidden>
+              <div class="live-head"><strong>Live-Transkript</strong><span id="live-lag" class="hint"></span></div>
+              <div id="live-lines" class="live-lines"></div>
+            </div>
             <div id="work" class="work" hidden>
               <div class="work-top"><span id="work-label"></span><span id="work-pct"></span></div>
               <div class="bar"><span id="work-bar"></span></div>
@@ -95,7 +99,8 @@
               </div>
               <div class="settings-col">
                 <h3>Transkription</h3>
-                <label class="toggle"><input type="checkbox" id="auto" checked /><span class="switch"></span>Nach dem Stoppen automatisch starten</label>
+                <label class="toggle"><input type="checkbox" id="live" /><span class="switch"></span>Live-Transkript <small>(Audio wird nicht gespeichert)</small></label>
+                <label class="toggle"><input type="checkbox" id="auto" /><span class="switch"></span>Nach dem Stoppen automatisch transkribieren</label>
                 <label class="toggle"><input type="checkbox" id="diarize" checked /><span class="switch"></span><svg><use href="#i-users" /></svg>Sprecher erkennen</label>
                 <div class="inline-fields">
                   <label class="field small">

@@ -89,7 +89,9 @@ jobs:
               out.setparams(params)
               out.writeframes(b"".join(frames))
           PY
-          node test/e2e.mjs --transcribe dialog.wav --speakers 2 --expect-turns A,B,A
+          # zusätzlich: Live-Modus, dabei spielt der Browser dialog.wav als „Mikrofon“ ab
+          node test/e2e.mjs --transcribe dialog.wav --speakers 2 --expect-turns A,B,A \
+            --live-audio dialog.wav --live-expect zeitplan,projektstand,frage
 
       - if: github.event_name != 'pull_request'
         uses: actions/upload-pages-artifact@v3

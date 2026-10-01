@@ -197,6 +197,15 @@ nav a .badge { margin-left: auto; font-size: 11.5px; font-weight: 700; min-width
 .icon-btn svg { width: 16px; height: 16px; }
 .row.end { justify-content: flex-end; }
 
+/* Live-Transkript */
+.live-panel { border: 1px solid var(--line); border-radius: 12px; background: #faf9ff; padding: 10px 14px; }
+.live-head { display: flex; justify-content: space-between; align-items: center; font-size: 13px; margin-bottom: 6px; }
+.live-lines { max-height: 260px; overflow: auto; display: flex; flex-direction: column; gap: 6px; font-size: 14px; line-height: 1.45; }
+.live-lines .t { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; margin-right: 6px; }
+.live-lines .w { font-weight: 700; color: var(--accent); margin-right: 4px; }
+.live-lines .w.remote { color: #0b8aa6; }
+.toggle input:disabled ~ * { opacity: 0.5; }
+
 /* Dialog */
 dialog { border: 0; border-radius: var(--radius); padding: 0; box-shadow: 0 20px 60px rgba(30, 20, 90, 0.25); width: min(460px, 92vw); color: var(--text); }
 dialog::backdrop { background: rgba(29, 24, 70, 0.45); }

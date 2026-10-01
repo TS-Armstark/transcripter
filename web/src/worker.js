@@ -20,19 +20,21 @@ export const MODELS = {
 // Stimmabdrücke für die Sprechererkennung (WavLM, auf Sprecher-Verifikation trainiert)
 const SPEAKER_MODEL = "Xenova/wavlm-base-plus-sv";
 
-let asr = null;
+// Laden ist idempotent (Promise wird gemerkt): Vorladen und erste Anfrage dürfen sich überschneiden
+let asrPromise = null;
 let loadedKey = null;
-let speaker = null;
+let speakerPromise = null;
 
-async function loadSpeaker() {
-  if (speaker) return speaker;
-  progressFiles.clear(); // Fortschritt nur für dieses Modell zählen
-  const [extractor, model] = await Promise.all([
-    AutoFeatureExtractor.from_pretrained(SPEAKER_MODEL),
-    WavLMForXVector.from_pretrained(SPEAKER_MODEL, { dtype: "q8", device: "wasm", progress_callback: reportProgress }),
-  ]);
-  speaker = { extractor, model };
-  return speaker;
+function loadSpeaker() {
+  if (!speakerPromise) {
+    progressFiles.clear(); // Fortschritt nur für dieses Modell zählen
+    speakerPromise = Promise.all([
+      AutoFeatureExtractor.from_pretrained(SPEAKER_MODEL),
+      WavLMForXVector.from_pretrained(SPEAKER_MODEL, { dtype: "q8", device: "wasm", progress_callback: reportProgress }),
+    ]).then(([extractor, model]) => ({ extractor, model }));
+    speakerPromise.catch(() => (speakerPromise = null));
+  }
+  return speakerPromise;
 }
 
 const progressFiles = new Map();
@@ -49,26 +51,29 @@ function reportProgress(p) {
   }
 }
 
-async function load(key) {
-  if (asr && loadedKey === key) return;
+function load(key) {
+  if (asrPromise && loadedKey === key) return asrPromise;
   const cfg = MODELS[key];
   if (!cfg) throw new Error(`Unbekanntes Modell: ${key}`);
   progressFiles.clear();
-  asr = await pipeline("automatic-speech-recognition", cfg.id, {
+  loadedKey = key;
+  asrPromise = pipeline("automatic-speech-recognition", cfg.id, {
     device: cfg.device,
     dtype: cfg.dtype,
     progress_callback: reportProgress,
   });
-  loadedKey = key;
+  asrPromise.catch(() => (asrPromise = null));
+  return asrPromise;
 }
 
 self.onmessage = async ({ data }) => {
   try {
     if (data.type === "load") {
       await load(data.model);
+      if (data.speaker) await loadSpeaker();
       self.postMessage({ type: "loaded", model: data.model });
     } else if (data.type === "transcribe") {
-      await load(data.model);
+      const asr = await load(data.model);
       const out = await asr(data.audio, {
         language: "german",
         task: "transcribe",

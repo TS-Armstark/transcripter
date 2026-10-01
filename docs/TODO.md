@@ -85,6 +85,9 @@ Später geklärt:
 - [x] Dialog „Neu transkribieren“: Modell, Sprechererkennung, Personenzahl vor dem Start wählen
 - [x] Speicherordner ist Pflicht: ohne Ordner keine Aufnahme und kein Upload
 - [x] Export nach PDF (jsPDF 4.2.1, mitgeliefert) und Word (.docx, selbst erzeugt) in den Speicherordner
+- [x] Live-Transkript ohne Audio-Speicherung (AudioWorklet → Stücke ≥12 s an leiser Stelle → Whisper; Stimmabdrücke
+      live, Sprecherzuordnung am Ende); „automatisch transkribieren“ ab Werk aus
+- [ ] Rückmeldung User: Live-Modus auf CPU schnell genug? (Rückstand-Anzeige beobachten)
 - [ ] Rückmeldung User: Trefferquote der Sprechererkennung in echten Meetings (ggf. Schwelle 0.86 anpassen)
 - [ ] Sprechererkennung auch in der Desktop-Version (gleicher Ansatz, z. B. sherpa-onnx oder WavLM via onnxruntime)
 - [x] GitHub Pages aktiviert, Repo öffentlich (30.09.2026) – https://ts-armstark.github.io/transcripter/
