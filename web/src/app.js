@@ -20,7 +20,8 @@ import {
   toMarkdown,
 } from "./lib.js";
 
-const VERSION = "0.2.0-web";
+window.__appStarted = true; // für den Start-Wächter in index.html
+const VERSION = "0.3.0-web";
 const SR = 16000;
 const LABELS = { mic: "Ich/Raum", system: "Remote" };
 const TRACK_NAMES = { mic: "Mikrofon", system: "Teams/Zoom-Ton", file: "Audiodatei" };
